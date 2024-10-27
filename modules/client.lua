@@ -24,6 +24,9 @@ Client.address = nil
 ---@type fun()
 Client.onConnect = nil
 
+---@type number
+Client.ping = 0
+
 Client.seperator = "//"
 
 ---@type {[string]: fun(msg: {sender: string, timestamp: number, [string]: any})}
@@ -47,7 +50,7 @@ Client.eventHandlers = {
 			Client.clientId = msg.clientId
 			Client.hasInit = true
 
-			Core:debug("Initiated connection with JPXS gateway. Client ID: " .. msg.clientId)
+			Core:debug("Initiated connection with the JPXS gateway. Client ID: " .. msg.clientId)
 		end
 	end,
 	["auth:delay"] = function(msg)
@@ -77,7 +80,7 @@ Client.eventHandlers = {
 		Client.tag = tag
 	end,
 	["auth:success"] = function(msg)
-		Core:print("Successfully authenticated with JPXS gateway.")
+		Core:print("Successfully authenticated with the JPXS gateway.")
 		Core:print("Connection ID: " .. msg.clientId .. " | Server ID: " .. msg.serverId)
 
 		if Client.onConnect then
@@ -93,6 +96,9 @@ Client.eventHandlers = {
 	end,
 	["auth:fail"] = function(msg)
 		Core:print("Failed to authenticate with JPXS gateway: " .. msg.message)
+	end,
+	["ping"] = function(msg)
+		Client.ping = (os.realClock() - msg.data.sentAt) * 1000
 	end,
 }
 
@@ -130,7 +136,9 @@ end
 
 function Client.connect()
 	if not TCPClient then
-		Core:print("TCPClient not loaded, cannot connect to JPXS gateway.")
+		Core:print("\x1b[31;1mWARNING: ")
+		Core:print("\x1b[31;1mYour server is extremely out of date and does not support TCP.")
+		Core:print("\x1b[31;1mPlease update your server to the latest version.")
 		return
 	end
 
@@ -195,9 +203,9 @@ hook.add("Logic", "jpxs.keepalive", function()
 			Client.connect()
 		else
 			if Client.tcpClient.connected then
-				Client._createEvent("ping", "ping", { message = "ping" })
+				Client._createEvent("ping", "ping", { sentAt = os.realClock() })
 			else
-				Core:debug("Lost connection to JPXS gateway, attempting to reconnect...")
+				Core:debug("Lost connection to the JPXS gateway, attempting to reconnect...")
 				Client.hasInit = false
 
 				Core:getModule("util").setTimeout(60, function()

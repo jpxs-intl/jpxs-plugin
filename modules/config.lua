@@ -22,7 +22,7 @@ local Config = {
 ---@return JPXSConfigValue
 function Config:registerConfigValue(key, default, type, description)
 	self.values[key] = {
-		value = default, -- will be overwritten by loaded value
+		value = self.values[key] and self.values[key].value or default,
 		default = default,
 		type = type,
 		description = description,
@@ -51,6 +51,13 @@ function Config:set(key, value)
 	if self.values[key] == nil then
 		return false
 	end
+
+	if self.values[key].type == "boolean" then
+		value = value == "true" or value == "1" or value == true
+	elseif self.values[key].type == "number" then
+		value = tonumber(value)
+	end
+
 	self.values[key].value = value
 	self:save()
 	return value

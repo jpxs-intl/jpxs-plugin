@@ -75,41 +75,41 @@ hook.add("Logic", "jpxs.tcp", function()
 			client.thread:sendMessage(("zsn"):pack("connect", client.host, client.port))
 		end
 	else
-		while true do
-			if not client.thread then
-				break
-			end
+		if not client.thread then
+			return
+		end
 
-			local message = client.thread:receiveMessage()
-			if not message then
-				break
-			end
+		local message = client.thread:receiveMessage()
+		if not message then
+			return
+		end
 
+		---@type string, string
+		local type = ("z"):unpack(message)
+
+		if type == "message" and client.messageHandler then
 			---@type string, string
-			local type = ("z"):unpack(message)
+			local _, msg = ("zz"):unpack(message)
 
-			if type == "message" and client.messageHandler then
-				---@type string, string
-				local _, msg = ("zz"):unpack(message)
+			-- print("<-- " .. msg)
 
-				-- print("<-- " .. msg)
-
-				if msg:len() == 0 then
-					Core:debug("TCP connection closed. (empty message)")
-
-					client:close()
-					break
-				end
-
-				client.messageHandler(msg)
-			elseif type == "connect" then
-				client.connected = true
-			elseif type == "close" then
-				Core:debug("TCP connection closed. (close message)")
+			if msg:len() == 0 then
+				Core:debug("TCP connection closed. (empty message)")
 
 				client:close()
-				break
+				return
 			end
+
+			client.messageHandler(msg)
+		elseif type == "connect" then
+			client.connected = true
+		elseif type == "close" then
+			---@type string, string
+			local _, err = ("zz"):unpack(message)
+			Core:debug("TCP connection closed. (" .. err .. ")")
+
+			client:close()
+			return
 		end
 	end
 end)

@@ -2,4 +2,4 @@
 local Core = ...
 
 -- load banlist from gartbin
-Core:loadGartBin("xvw4")
+Core:loadGartbin("xvw4")

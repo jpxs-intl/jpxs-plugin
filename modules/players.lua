@@ -1,21 +1,18 @@
 ---@type Core
 local Core = ...
 
----@type {[integer]: boolean}
-local awaitingPlayers = {}
-
 ---@param Client JPXSClient
 Core:getDependencies({ "client" }, function(Client)
 	hook.add("PostPlayerCreate", "jpxs.players", function(player)
-		awaitingPlayers[player.index] = true
+		Core.awaitingPlayers[player.index] = true
 	end)
 
 	hook.add("Logic", "jpxs.players", function()
-		for index, _ in pairs(awaitingPlayers) do
+		for index, _ in pairs(Core.awaitingPlayers) do
 			local ply = players[index]
 
 			if ply.isBot or ply.connection == nil then
-				awaitingPlayers[index] = nil
+				Core.awaitingPlayers[index] = nil
 				return
 			end
 
@@ -35,13 +32,17 @@ Core:getDependencies({ "client" }, function(Client)
 				},
 			})
 
-			awaitingPlayers[index] = nil
+			Core.awaitingPlayers[index] = nil
 		end
 
 		if server.ticksSinceReset % Core.config:get("updateInterval") == 0 then
 			local playerListData = {}
 
 			for _, player in pairs(players.getNonBots()) do
+				if player.account == nil then
+					goto continue
+				end
+
 				table.insert(playerListData, {
 					subRosaID = player.account.subRosaID,
 					money = player.money,
@@ -50,19 +51,31 @@ Core:getDependencies({ "client" }, function(Client)
 					corp = player.corporateRating,
 					crim = player.criminalRating,
 				})
+
+				::continue::
 			end
 
-			Client.sendMessage("data", "player:list", playerListData)
+			Client.sendMessage("data", "player:list", {
+				players = playerListData,
+			})
 		end
 	end)
 
 	hook.add("PlayerDelete", "jpxs.players", function(player)
+		if player.account == nil or player.isBot then
+			return
+		end
+
 		Client.sendMessage("data", "player:leave", {
 			subRosaID = player.account.subRosaID,
 		})
 	end)
 
 	hook.add("PlayerChat", "jpxs.players", function(player, message)
+		if player.account == nil or player.isBot then
+			return
+		end
+
 		Client.sendMessage("data", "player:chat", {
 			subRosaID = player.account.subRosaID,
 			message = message,
@@ -71,6 +84,10 @@ Core:getDependencies({ "client" }, function(Client)
 	end)
 
 	hook.add("PostEventUpdatePlayerFinance", "jpxs.players", function(player)
+		if player.account == nil or player.isBot then
+			return
+		end
+
 		Client.sendMessage("data", "player:finance", {
 			subRosaID = player.account.subRosaID,
 			money = player.money,

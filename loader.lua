@@ -16,6 +16,9 @@ Core.KEEP_OUT_MESSAGE = [[
 
 ---@type Plugin
 Core.plugin = ...
+Core.plugin.name = "jpxs"
+Core.plugin.author = "gart"
+Core.plugin.description = "v 2.1 | analytics, logging, moderation, tooling"
 
 ---@type {[string]: any}
 Core.moduleCache = {}
@@ -23,6 +26,9 @@ Core.hasLoadedModules = false
 
 ---@type JPXSClient
 Core.client = nil
+
+---@type JPXSDevTools
+Core.devTools = nil
 
 Core.assetHost = {
 	host = "https://assets.jpxs.io",
@@ -38,6 +44,10 @@ Core.storagePath = ".jpxs/"
 ---@type {string: JPXSCommand}
 Core.commands = {}
 
+---@type {[integer]: boolean}
+Core.awaitingPlayers = {}
+
+--- modules to request
 local modules = {
 	"init",
 	"players",
@@ -47,7 +57,8 @@ local modules = {
 	"typeLoader",
 	"readme",
 	"commands",
-	"bansync",
+	"banSync",
+	"devTools",
 }
 
 ---@param text string print logs
@@ -66,7 +77,7 @@ end
 ---@param fileName string
 ---@return string
 function Core.addFileHeader(content, fileName)
-	return "--" .. fileName .. ".lua\n\n" .. Core.KEEP_OUT_MESSAGE .. "\n" .. content
+	return "--" .. fileName .. ".lua\n" .. content
 end
 
 ---@private
@@ -75,8 +86,16 @@ end
 ---@param cb fun(name: string, module: any)?
 function Core:loadModule(id, body, cb)
 	local file = Core.addFileHeader(body, id)
-	Core.moduleCache[id] = loadstring(file)(Core)
-	Core:debug(string.format("Downloaded module %s", id))
+
+	local result, err = loadstring(file)
+
+	if not result then
+		Core:print(string.format("Failed to load module %s: %s", id, err))
+		return
+	end
+
+	Core.moduleCache[id] = result(Core)
+	Core:debug(string.format("Loaded module %s", id))
 
 	if cb then
 		cb(id, Core.moduleCache[id])
@@ -102,7 +121,7 @@ end
 ---@param id string
 ---@param cb fun(name: string, module: any)?
 ---@param showError? boolean
-function Core:loadGartBin(id, cb, showError)
+function Core:loadGartbin(id, cb, showError)
 	http.get(Core.bin.host, "/" .. id .. "/raw", {}, function(response)
 		if response and response.status == 200 then
 			Core:loadModule(id, response.body, cb)
@@ -137,17 +156,17 @@ end
 ---@param cb fun(...: any[])?
 function Core:getDependencies(modules, cb)
 	local neededToLoad = {}
-	for _, name in ipairs(modules) do
-		table.insert(neededToLoad, name)
+	for _, id in pairs(modules) do
+		neededToLoad[id] = true
 	end
 
-	local function onLoad(name)
-		table.remove(neededToLoad, table.find(neededToLoad, name))
-		if #neededToLoad == 0 then
-			local deps = {}
+	local function onLoad(id)
+		neededToLoad[id] = nil
 
-			for _, name in pairs(modules) do
-				table.insert(deps, Core.moduleCache[name])
+		if #table.keys(neededToLoad) == 0 then
+			local deps = {}
+			for _, moduleId in pairs(modules) do
+				table.insert(deps, Core.moduleCache[moduleId])
 			end
 
 			if cb then
@@ -156,12 +175,19 @@ function Core:getDependencies(modules, cb)
 		end
 	end
 
-	for _, name in pairs(neededToLoad) do
-		Core:getOrDownloadModule(name, onLoad)
+	for id, _ in pairs(neededToLoad) do
+		Core:getOrDownloadModule(id, onLoad)
 	end
 end
 
 function Core:load()
+	if _G["JPXS_🍆"] then
+		Core:print("Modules are already loading! Please wait.")
+		return
+	end
+
+	_G["JPXS_🍆"] = true
+
 	local function postLoad()
 		Core:getOrDownloadModule("client", function(_, Client)
 			Client.connect()
@@ -169,6 +195,8 @@ function Core:load()
 				if not Core.hasLoadedModules then
 					Core:getDependencies(modules, function()
 						Core.hasLoadedModules = true
+						_G["JPXS_🍆"] = nil
+
 						Core:debug("All modules loaded")
 					end)
 				end

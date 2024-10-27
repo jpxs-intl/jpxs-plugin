@@ -14,7 +14,18 @@ local function getModeInformation()
 end
 
 ---@param Client JPXSClient
-Core:getDependencies({ "client" }, function(Client)
+---@param Config JPXSConfig
+Core:getDependencies({ "client", "config" }, function(Client, Config)
+	Config:registerConfigValue("serverListIcon", "<default>", "string", "Icon to display in the server list")
+	Config:registerConfigValue(
+		"serverListDescription",
+		"<default>",
+		"string",
+		"Description to display in the server list"
+	)
+	Config:registerConfigValue("serverListUrl", "<default>", "string", "URL to display in the server list")
+	Config:registerConfigValue("serverListTags", "<default>", "string", "Tags to display in the server list")
+
 	local mode = getModeInformation()
 	---@type {name: string, subRosaId: string}[]
 	local bans = {}
@@ -35,5 +46,11 @@ Core:getDependencies({ "client" }, function(Client)
 			description = mode.description,
 		} or nil,
 		bans = bans,
+		config = {
+			serverListIcon = Core.config:get("serverListIcon"),
+			serverListDescription = Core.config:get("serverListDescription"),
+			serverListUrl = Core.config:get("serverListUrl"),
+			serverListTags = Core.config:get("serverListTags"),
+		},
 	})
 end)

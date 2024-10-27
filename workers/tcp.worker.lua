@@ -38,7 +38,7 @@ while true do
 			hasConnected = true
 		end
 
-		local success = pcall(function()
+		local success, err = pcall(function()
 			local message = tcpClient:receive(16384)
 			if message then
 				sendMessage(("zz"):pack("message", message))
@@ -49,7 +49,12 @@ while true do
 			tcpClient:close()
 			-- tcpClient = nil
 			hasConnected = false
-			sendMessage(("z"):pack("close"))
+			
+			if err and type(err) == "string" then
+				sendMessage(("zz"):pack("close", err))
+			else
+				sendMessage(("zz"):pack("close", "Failed to receive message."))
+			end
 		end
 	end
 

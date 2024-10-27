@@ -80,7 +80,7 @@ Core.commands["bin"] = {
 	consoleOnly = true,
 	call = function(args)
 		assert(args[2], "usage")
-		Core:loadGartBin(args[2], function(name, module)
+		Core:loadGartbin(args[2], function(name, module)
 			print(string.format("Loaded bin %s", name))
 		end, true)
 	end,
@@ -93,11 +93,12 @@ Core.commands["info"] = {
 	call = function(args)
 		print(
 			string.format(
-				"\x1b[32;1m%s\x1b[0m | \x1b[36m%s/%s\x1b[0m | \x1b[36m%.2f tps",
+				"\x1b[32;1m%s\x1b[0m | \x1b[36m%s/%s\x1b[0m | \x1b[36m%.2f tps\x1b[0m | \x1b[36m%.0f ms",
 				server.name,
 				#players.getNonBots(),
 				server.maxPlayers,
-				Core.moduleCache["performance"].tpsInfo.recent
+				Core.moduleCache["performance"].tpsInfo.recent,
+				Core.moduleCache["client"].ping
 			)
 		)
 		print(
@@ -135,6 +136,55 @@ Core.commands["info"] = {
 			local max = row[3]
 
 			print(string.format("\x1b[36;1m%s %d / %d", name, count, max))
+		end
+	end,
+	canCall = function(player)
+		return player.isAdmin or Core.devTools.staff[player.phoneNumber]
+	end,
+	callChat = function(player, args)
+		messagePlayerWrap(player, server.name)
+		messagePlayerWrap(player, string.format("ServerID: %s", Core.client.serverId))
+		messagePlayerWrap(player, string.format("ConnectionID: %s", Core.client.clientId))
+		messagePlayerWrap(player, string.format("Host: %s:%s", Core.client.address, server.port))
+		messagePlayerWrap(
+			player,
+			string.format(
+				"TPS: %.2f | %s/%s",
+				Core.moduleCache["performance"].tpsInfo.recent,
+				#players.getNonBots(),
+				server.maxPlayers
+			)
+		)
+	end,
+}
+
+Core.commands["reload"] = {
+	info = "Reload the plugin",
+	usage = "reload",
+	call = function(args)
+		---@diagnostic disable-next-line: undefined-field
+		Core.plugin:reload()
+	end,
+	canCall = function(player)
+		return player.isAdmin or Core.devTools.staff[player.phoneNumber]
+	end,
+	callChat = function(player, args)
+		---@diagnostic disable-next-line: undefined-field
+		Core.plugin:reload()
+		messagePlayerWrap(player, "Reloading JPXS")
+	end,
+}
+
+Core.commands["eventhandlers"] = {
+	info = "Reconnect to the server",
+	usage = "reconnect",
+	call = function(args)
+		---@type JPXSClient
+		local client = Core:getModule("client")
+		local eventHandlers = client.eventHandlers
+
+		for name, handler in pairs(eventHandlers) do
+			print(string.format("\x1b[36;1m%s\x1b[0m - %s", name, tostring(handler)))
 		end
 	end,
 }
@@ -186,6 +236,36 @@ Core.commands["ban"] = {
 			string.format("%s banned %s for %s: %s", player.name, targetAccount.name, timeFormatted, reason)
 		)
 		Core:print(string.format("%s banned %s for %s: %s", player.name, targetAccount.name, timeFormatted, reason))
+	end,
+}
+
+Core.commands["config"] = {
+	info = "modify config values",
+	usage = "jpxs config [key] [value]",
+	call = function(args)
+		local key = args[2]
+		local value = args[3]
+
+		---@type JPXSConfig
+		local config = Core:getModule("config")
+
+		if key then
+			if value then
+				config:set(key, value)
+				print(string.format("Set %s to %s", key, value))
+			else
+				local val = config.values[key]
+				print(string.format("\x1b[36;1m%s", key))
+				print(string.format("  \x1b[0m%s", val.description))
+				print(string.format("  \x1b[36;1mType: \x1b[0m%s", val.type))
+				print(string.format("  \x1b[36;1mValue: \x1b[0m%s", val.value))
+				print(string.format("  \x1b[36;1mDefault: \x1b[0m%s", val.default))
+			end
+		else
+			for key, val in pairs(config.values) do
+				print(string.format("\x1b[36;1m%s\x1b[0m - %s", key, val.description))
+			end
+		end
 	end,
 }
 
