@@ -21,6 +21,8 @@ local Config = {
 ---@param description string
 ---@return JPXSConfigValue
 function Config:registerConfigValue(key, default, type, description)
+	local keyAlreadyExists = self.values[key] ~= nil
+
 	self.values[key] = {
 		value = self.values[key] and self.values[key].value or default,
 		default = default,
@@ -28,7 +30,7 @@ function Config:registerConfigValue(key, default, type, description)
 		description = description,
 	}
 
-	Core:debug("Registered config value " .. key)
+	Core:debug("Registered config value " .. key .. (keyAlreadyExists and " (prepopulated)" or ""))
 
 	return self.values[key]
 end
@@ -118,6 +120,15 @@ function Config:load()
 			self.values[key].value = value
 
 			Core:debug("Loaded config value " .. key .. " with value " .. tostring(value))
+		else
+			Core:debug("Config value " .. key .. " does not exist, creating a blank entry")
+
+			self.values[key] = {
+				value = value,
+				default = nil,
+				type = "unknown",
+				description = "Unknown config value",
+			}
 		end
 	end
 
@@ -128,8 +139,8 @@ function Config:init()
 	-- fire hook to register config values
 	hook.run("JPXSConfigInit", self)
 	self:load()
-	self:save()
 	hook.run("JPXSConfigLoaded", self)
+	Core:debug("Config loaded")
 end
 
 Core.config = Config

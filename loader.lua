@@ -1,3 +1,4 @@
+--[[loader.lua]]
 ---@class Core
 ---@field config JPXSConfig
 local Core = {}
@@ -14,11 +15,17 @@ Core.KEEP_OUT_MESSAGE = [[
 -- ##############################################################
 ]]
 
+Core.credits = [[
+gart            -  main dev, gateway
+jpsh            -  exe mod and customVersion module, testing
+checkraisefold  -  TCPClient rs module, TCPClient demo 
+]]
+
 ---@type Plugin
 Core.plugin = ...
 Core.plugin.name = "jpxs"
-Core.plugin.author = "gart"
-Core.plugin.description = "v 2.1 | analytics, logging, moderation, tooling"
+Core.plugin.author = "gart + more (/jpxs credits)"
+Core.plugin.description = "v 2.7 BETA | analytics, logging, moderation, tooling"
 
 ---@type {[string]: any}
 Core.moduleCache = {}
@@ -47,6 +54,9 @@ Core.commands = {}
 ---@type {[integer]: boolean}
 Core.awaitingPlayers = {}
 
+---@type {[string]: any}
+Core.overrides = {}
+
 --- modules to request
 local modules = {
 	"init",
@@ -58,6 +68,7 @@ local modules = {
 	"readme",
 	"commands",
 	"banSync",
+	"customVersion",
 	"devTools",
 }
 
@@ -68,7 +79,7 @@ end
 
 ---@param text string print logs
 function Core:debug(text)
-	if Core.debugEnabled then
+	if Core.debugEnabled or (Core.config and Core.config.values and Core.config.values.debug == true) then
 		print("\27[30;1m[" .. os.date("%X") .. "]\27[0m \27[38;5;202m[DEBUG][JPXS]\27[0m " .. text)
 	end
 end
@@ -77,7 +88,7 @@ end
 ---@param fileName string
 ---@return string
 function Core.addFileHeader(content, fileName)
-	return "--" .. fileName .. ".lua\n" .. content
+	return "--[[ " .. fileName .. ".lua ]]" .. (" "):rep(32) .. content
 end
 
 ---@private
@@ -197,14 +208,15 @@ function Core:load()
 						Core.hasLoadedModules = true
 						_G["JPXS_🍆"] = nil
 
-						Core:debug("All modules loaded")
+						Core:print("Loaded!")
+						hook.run("JPXSLoaded")
 					end)
 				end
 			end
 		end)
 	end
 
-	-- check for polyfill (minimum version 1)
+	-- check for polyfill (minimum version 2)
 	if _G.polyfill and _G.polyfill.version >= 2 then
 		postLoad()
 	else
@@ -228,6 +240,7 @@ hook.add("JPXSConfigInit", "jpxs.configLoader", function(Config)
 
 	Config:registerConfigValue("debug", false, "boolean", "Enable debug mode")
 	Config:registerConfigValue("updateInterval", 60 * 15, "integer", "Data update interval, in ticks")
+	Config:registerConfigValue("connectionMethod", "http", "string", "Connection method (http, tcp)")
 end)
 
 Core:load()

@@ -15,6 +15,7 @@ end
 ---@class JPXSCommand
 ---@field info string
 ---@field usage string
+---@field hidden boolean?
 ---@field autoComplete (fun(args: string[]): string[])?
 ---@field call fun(args: string[])
 ---@field callChat fun(player: Player, args: string[])? only for chat commands
@@ -22,12 +23,28 @@ end
 
 -- jpxs subcommands
 
+Core.commands[""] = {
+	hidden = true,
+	call = function(args)
+		print("\27[38;5;202m JPXS \27[0m " .. Core.plugin.description)
+		print("Type 'jpxs help' for a list of commands.")
+	end,
+	callChat = function(player)
+		messagePlayerWrap(player, "\27[38;5;202m JPXS \27[0m " .. Core.plugin.description)
+		messagePlayerWrap(player, "Type 'jpxs help' for a list of commands.")
+	end,
+}
+
 Core.commands["help"] = {
 	info = "Shows all available commands",
 	usage = "jpxs help [page]",
 	call = function(args)
 		for name, command in pairs(Core.commands) do
+			if command.hidden then
+				goto continue
+			end
 			print(string.format("\x1b[36;1m%s\x1b[0m - %s", name, command.info))
+			::continue::
 		end
 	end,
 	callChat = function(player, args)
@@ -58,6 +75,24 @@ Core.commands["help"] = {
 			if i >= sliceStart and i < sliceEnd then
 				messagePlayerWrap(player, string.format("%s - %s", name, command.info))
 			end
+		end
+	end,
+}
+
+Core.commands["credits"] = {
+	info = "Shows the credits for the plugin",
+	usage = "credits",
+	call = function(args)
+		local lines = Core.credits:split("\n")
+		for _, line in ipairs(lines) do
+			print(line)
+		end
+		print("\n")
+	end,
+	callChat = function(player, args)
+		local lines = Core.credits:split("\n")
+		for _, line in ipairs(lines) do
+			messagePlayerWrap(player, line)
 		end
 	end,
 }
@@ -110,33 +145,6 @@ Core.commands["info"] = {
 				server.port
 			)
 		)
-
-		local rows = {
-			{ "Accounts", accounts.getCount(), 32768 },
-			{ "Players", players.getCount(), 256 },
-			{ "Humans", humans.getCount(), 256 },
-			{ "Items", items.getCount(), 1024 },
-			{ "Vehicles", vehicles.getCount(), 512 },
-			{ "RigidBodies", rigidBodies.getCount(), 8192 },
-			{ "Bonds", bonds.getCount(), 16384 },
-			{ "Events", events.getCount(), 65536 },
-		}
-
-		local maxNameLength = 0
-
-		for _, row in ipairs(rows) do
-			maxNameLength = math.max(maxNameLength, #row[1])
-		end
-
-		print("\n\x1b[32;1mLimits:\x1b[0m\n")
-
-		for _, row in ipairs(rows) do
-			local name = row[1] .. "\x1b[0m:" .. string.rep(" ", maxNameLength - #row[1])
-			local count = row[2]
-			local max = row[3]
-
-			print(string.format("\x1b[36;1m%s %d / %d", name, count, max))
-		end
 	end,
 	canCall = function(player)
 		return player.isAdmin or Core.devTools.staff[player.phoneNumber]
@@ -158,6 +166,43 @@ Core.commands["info"] = {
 	end,
 }
 
+Core.commands["limits"] = {
+	info = "Get server limits",
+	usage = "limits",
+	consoleOnly = true,
+	call = function(args)
+		local rows = {
+			{ "Accounts", accounts.getCount(), 32768 },
+			{ "Players", players.getCount(), 256 },
+			{ "Humans", humans.getCount(), 256 },
+			{ "Items", items.getCount(), 1024 },
+			{ "Vehicles", vehicles.getCount(), 512 },
+			{ "RigidBodies", rigidBodies.getCount(), 8192 },
+			{ "Bonds", bonds.getCount(), 16384 },
+			{ "Events", events.getCount(), 65536 },
+		}
+
+		local maxNameLength = 0
+
+		for _, row in ipairs(rows) do
+			maxNameLength = math.max(maxNameLength, #row[1])
+		end
+
+		print("\x1b[32;1mLimits:\x1b[0m\n")
+
+		for _, row in ipairs(rows) do
+			local name = row[1] .. "\x1b[0m:" .. string.rep(" ", maxNameLength - #row[1])
+			local count = row[2]
+			local max = row[3]
+
+			print(string.format("\x1b[36;1m%s %d / %d", name, count, max))
+		end
+	end,
+	canCall = function(player)
+		return player.isAdmin or Core.devTools.staff[player.phoneNumber]
+	end,
+}
+
 Core.commands["reload"] = {
 	info = "Reload the plugin",
 	usage = "reload",
@@ -176,7 +221,7 @@ Core.commands["reload"] = {
 }
 
 Core.commands["eventhandlers"] = {
-	info = "Reconnect to the server",
+	info = "List all event handlers",
 	usage = "reconnect",
 	call = function(args)
 		---@type JPXSClient
@@ -240,7 +285,7 @@ Core.commands["ban"] = {
 }
 
 Core.commands["config"] = {
-	info = "modify config values",
+	info = "View and modify config values",
 	usage = "jpxs config [key] [value]",
 	call = function(args)
 		local key = args[2]
@@ -262,8 +307,17 @@ Core.commands["config"] = {
 				print(string.format("  \x1b[36;1mDefault: \x1b[0m%s", val.default))
 			end
 		else
-			for key, val in pairs(config.values) do
-				print(string.format("\x1b[36;1m%s\x1b[0m - %s", key, val.description))
+			-- sort the config values by key
+			local sortedKeys = {}
+
+			for key in pairs(config.values) do
+				table.insert(sortedKeys, key)
+			end
+
+			table.sort(sortedKeys)
+
+			for _, key in ipairs(sortedKeys) do
+				print(string.format("\x1b[36;1m%s\x1b[0m - %s", key, config.values[key].description))
 			end
 		end
 	end,
@@ -307,7 +361,11 @@ Core.plugin.commands["/jpxs"] = {
 					messagePlayerWrap(player, "You don't have permission to use this command.")
 				end
 			else
-				messagePlayerWrap(player, "Command not found - use '/jpxs help' to see all available commands.")
+				if command == nil and args[1] ~= "" then
+					Core.commands[""].callChat(player)
+				else
+					messagePlayerWrap(player, "Command not found - use '/jpxs help' to see all available commands.")
+				end
 			end
 		else
 			local command = Core.commands[args[1]]
@@ -326,7 +384,11 @@ Core.plugin.commands["/jpxs"] = {
 					end
 				end
 			else
-				print("Command not found - use 'jpxs help' to see all available commands.")
+				if command == nil and args[1] ~= "" then
+					Core.commands[""].call(args)
+				else
+					print("Command not found - use 'jpxs help' to see all available commands.")
+				end
 			end
 		end
 	end,

@@ -11,12 +11,26 @@ local workers = {
 ---@class WorkerLoader
 local WorkerLoader = {}
 
+WorkerLoader.loading = false
+WorkerLoader.loaded = false
+
+---@type fun()[]
+WorkerLoader.callbacks = {}
+
 ---@param worker string
 ---@param cb? fun()
 function WorkerLoader.load(worker, cb)
 	local workerPath = path .. worker .. ".worker.lua"
-	http.get(Core.assetHost.host, Core.assetHost.path .. "workers/" .. worker .. ".worker.lua", {}, function(res)
+	Core:debug("Downloading worker " .. workerPath)
+
+	local requestPath = Core.assetHost.path .. "workers/" .. worker .. ".worker.lua"
+
+	Core:debug("Requesting worker " .. Core.assetHost.host .. requestPath)
+
+	http.get(Core.assetHost.host, requestPath, {}, function(res)
 		if res and res.status == 200 then
+			Core:debug("Writing worker " .. worker .. " to " .. workerPath)
+
 			local file = io.open(workerPath, "w")
 			if not file then
 				Core:debug("Failed to write worker " .. worker)
@@ -37,6 +51,18 @@ end
 
 ---@param cb? fun()
 function WorkerLoader.loadWorkers(cb)
+	if WorkerLoader.loaded then
+		if cb then
+			cb()
+		end
+		return
+	end
+
+	if WorkerLoader.loading then
+		table.insert(WorkerLoader.callbacks, cb)
+		return
+	end
+
 	WorkerLoader.loadGitIgnore()
 
 	local function checkComplete()
@@ -55,8 +81,19 @@ function WorkerLoader.loadWorkers(cb)
 		if cb then
 			cb()
 		end
+
+		WorkerLoader.loaded = true
+		WorkerLoader.loading = false
+
+		for _, callback in pairs(WorkerLoader.callbacks) do
+			callback()
+		end
+
+		WorkerLoader.callbacks = {}
 	end
-	
+
+	WorkerLoader.loading = true
+
 	for _, worker in pairs(workers) do
 		WorkerLoader.load(worker, checkComplete)
 	end

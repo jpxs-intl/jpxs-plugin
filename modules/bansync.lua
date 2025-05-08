@@ -1,17 +1,6 @@
 ---@type Core
 local Core = ...
 
----@param Config JPXSConfig
-hook.add("JPXSConfigInit", "jpxs.bansync", function(Config)
-	Config:registerConfigValue("banSyncEnabled", false, "boolean", "Enable ban synchronization")
-	Config:registerConfigValue(
-		"banSyncChannelId",
-		"bansync_jpxs",
-		"string",
-		"JPXS Networking channel ID for ban synchronization"
-	)
-end)
-
 ---@class JPXSBanSync
 local JPXSBanSync = {}
 
@@ -19,10 +8,25 @@ local JPXSBanSync = {}
 ---@param Util Util
 ---@param Config JPXSConfig
 Core:getDependencies({ "client", "util", "config" }, function(Client, Util, Config)
+	Config:registerConfigValue("banSyncEnabled", false, "boolean", "Enable ban synchronization")
+	Config:registerConfigValue(
+		"banSyncChannelId",
+		"disabled",
+		"string",
+		"JPXS Networking channel ID for ban synchronization"
+	)
+
 	local banSyncEnabled = Config:get("banSyncEnabled")
 	local banSyncChannelId = Config:get("banSyncChannelId")
 
 	if not banSyncEnabled then
+		return
+	end
+
+	if banSyncChannelId == "disabled" then
+		Core:print("\x1b[31;1mBanSync is enabled but no channel ID is set.")
+		Core:print("\x1b[31;1mPlease set a channel ID using this command:")
+		Core:print("\x1b[10;1mjpxs config banSyncChannelId [channelId]")
 		return
 	end
 

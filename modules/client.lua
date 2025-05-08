@@ -7,9 +7,12 @@ local json = require("main.json")
 local Client = {}
 
 Client.host = "gateway.jpxs.io"
+Client.path = "/events"
 Client.port = 4000
+Client.reconnectTimer = 1200
+
 ---@type TCP
-Client.tcpClient = nil
+Client.interface = nil
 ---@type string
 Client.tag = nil
 ---@type string
@@ -28,6 +31,12 @@ Client.onConnect = nil
 Client.ping = 0
 
 Client.seperator = "//"
+
+-- force overrides so we can connect to alt servers
+if Core.overrides then
+	Client.host = Core.overrides.gatewayHost or Client.host
+	Client.port = Core.overrides.gatewayPort or Client.port
+end
 
 ---@type {[string]: fun(msg: {sender: string, timestamp: number, [string]: any})}
 Client.eventHandlers = {
@@ -103,13 +112,12 @@ Client.eventHandlers = {
 }
 
 ---@private
----@param TCP TCP
----@param Util Util
-function Client._handleConnection(TCP, Util)
+---@param interface TCP
+function Client._handleConnection(interface)
 	Core:debug("Connecting to JPXS gateway...")
-	Client.tcpClient = TCP.connect(Client.host, Client.port)
+	Client.interface = interface.connect(Client.host, Client.port)
 
-	Client.tcpClient:onMessage(function(message)
+	Client.interface:onMessage(function(message)
 		local parts = message:split(Client.seperator)
 		for _, part in pairs(parts) do
 			local length, encoded = part:match("^(%d+):(.+)$")
@@ -147,7 +155,7 @@ function Client.connect()
 	---@param Util Util
 	Core:getDependencies({ "tcp", "workerLoader", "util", "config" }, function(TCP, WorkerLoader, Util)
 		WorkerLoader.loadWorkers(function()
-			Client._handleConnection(TCP, Util)
+			Client._handleConnection(TCP)
 		end)
 	end)
 end
@@ -160,7 +168,7 @@ function Client._createEvent(channel, event, data)
 		data = data,
 	})
 
-	Client.tcpClient:sendMessage(string.format("%s" .. Client.seperator, msg))
+	Client.interface:sendMessage(string.format("%s" .. Client.seperator, msg))
 end
 
 --- Subscribe to a channel. Will create the channel if it doesn't exist.
@@ -198,18 +206,18 @@ function Client.sendMessage(channelId, event, data)
 end
 
 hook.add("Logic", "jpxs.keepalive", function()
-	if server.ticksSinceReset % 1200 == 0 then
-		if not Client.tcpClient then
+	if server.ticksSinceReset % Client.reconnectTimer == 0 then
+		if not Client.interface then
 			Client.connect()
 		else
-			if Client.tcpClient.connected then
+			if Client.interface.connected then
 				Client._createEvent("ping", "ping", { sentAt = os.realClock() })
 			else
 				Core:debug("Lost connection to the JPXS gateway, attempting to reconnect...")
 				Client.hasInit = false
 
 				Core:getModule("util").setTimeout(60, function()
-					Client._handleConnection(Core:getModule("tcp"), Core:getModule("util"))
+					Client._handleConnection(Core:getModule("tcp"))
 				end)
 			end
 		end
