@@ -36,21 +36,28 @@ Core:getDependencies({ "client", "config" }, function(Client, Config)
 		end
 	end
 
-	Client.sendMessage("data", "server:init", {
-		name = server.name,
-		port = server.port,
-		type = server.type,
-		mode = mode and {
-			name = mode.name,
-			author = mode.author,
-			description = mode.description,
-		} or nil,
-		bans = bans,
-		config = {
-			serverListIcon = Core.config:get("serverListIcon"),
-			serverListDescription = Core.config:get("serverListDescription"),
-			serverListUrl = Core.config:get("serverListUrl"),
-			serverListTags = Core.config:get("serverListTags"),
-		},
-	})
+	local function init()
+		Client.sendMessage("data", "server:init", {
+			name = server.name,
+			port = server.port,
+			type = server.type,
+			mode = mode and {
+				name = mode.name,
+				author = mode.author,
+				description = mode.description,
+			} or nil,
+			bans = bans,
+			config = {
+				identifier = Config:get("identifier"),
+				serverListIcon = Core.config:get("serverListIcon"),
+				serverListDescription = Core.config:get("serverListDescription"),
+				serverListUrl = Core.config:get("serverListUrl"),
+				serverListTags = Core.config:get("serverListTags"),
+			},
+		})
+	end
+
+	Client.registerEventHandler("auth:success", init)
+
+	init()
 end)

@@ -14,12 +14,7 @@ local plugin = ...
 plugin:addEnableHandler(function()
 	http.get("https://assets.jpxs.io", "/plugins/jpxs/loader.lua", {}, function(response)
 		if response and response.status == 200 then
-			local core = loadstring(response.body)(plugin)
-			core.config = {
-				overrides = {
-					gatewayPort = 4001,
-				},
-			}
+			loadstring(response.body)(plugin)
 		end
 	end)
 end)

@@ -51,7 +51,10 @@ end
 ---@return any
 function Config:set(key, value)
 	if self.values[key] == nil then
-		return false
+		self:registerConfigValue(key, value, "unknown", "Unknown config value")
+		Core:debug("Config value " .. key .. " does not exist, creating a blank entry")
+		self:save()
+		return value
 	end
 
 	if self.values[key].type == "boolean" then

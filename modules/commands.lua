@@ -109,6 +109,18 @@ Core.commands["loadmodule"] = {
 	end,
 }
 
+Core.commands["loadedmodules"] = {
+	info = "List all loaded modules",
+	usage = "loadedmodules",
+	consoleOnly = true,
+	call = function(args)
+		print("\x1b[32;1mLoaded modules:\x1b[0m")
+		for name, module in pairs(Core.moduleCache) do
+			print(string.format("\x1b[36;1m%s\x1b[0m", name))
+		end
+	end,
+}
+
 Core.commands["bin"] = {
 	info = "Load a bin by ID",
 	usage = "bin <id>",
@@ -300,6 +312,12 @@ Core.commands["config"] = {
 				print(string.format("Set %s to %s", key, value))
 			else
 				local val = config.values[key]
+
+				if not val then
+					print(string.format("Config value %s not found", key))
+					return
+				end
+
 				print(string.format("\x1b[36;1m%s", key))
 				print(string.format("  \x1b[0m%s", val.description))
 				print(string.format("  \x1b[36;1mType: \x1b[0m%s", val.type))

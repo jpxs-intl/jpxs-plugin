@@ -1,6 +1,9 @@
 --[[loader.lua]]
 ---@class Core
+--- exports
 ---@field config JPXSConfig
+---@field transfer JPXSTransfer
+---
 local Core = {}
 Core.debugEnabled = false
 
@@ -70,7 +73,88 @@ local modules = {
 	"banSync",
 	"customVersion",
 	"devTools",
+	"transfer",
 }
+
+---@class JPXSPlugin
+---@field id string
+---@field name string
+---@field author string
+---@field description string
+---@field path string
+Core.JPXSPlugin = {}
+Core.JPXSPlugin.__index = Core.JPXSPlugin
+
+---@private
+Core.JPXSPlugin.__call = function(self, id, path)
+	local plugin = {
+		id = id,
+		name = self.name or "Unknown",
+		author = self.author or "Unknown",
+		description = self.description or "No description",
+		path = path,
+		core = Core,
+	}
+
+	setmetatable(plugin, Core.JPXSPlugin)
+
+	return plugin
+end
+
+---@param self JPXSPlugin
+---@param id string
+---@param cb fun(name: string, module: any)?
+function Core.JPXSPlugin:loadSubModule(id, cb)
+	local path = self.path .. id .. ".lua"
+	local fileId = "plugin." .. self.id .. "." .. id
+
+	if Core.moduleCache[fileId] then
+		return Core.moduleCache[fileId]
+	end
+
+	http.get(Core.assetHost.host, path, {}, function(response)
+		if response and response.status == 200 then
+			Core:loadModule(fileId, response.body, cb)
+		else
+			Core:print(
+				string.format(
+					"Failed to download plugin %s (%s)",
+					fileId,
+					response and response.status or "no response"
+				)
+			)
+		end
+	end)
+end
+
+---@param self JPXSPlugin
+---@param ids string[]
+---@param cb fun(name: string, module: any)?
+function Core.JPXSPlugin:loadSubModules(ids, cb)
+	local neededToLoad = {}
+	for _, id in pairs(ids) do
+		neededToLoad[id] = true
+	end
+
+	local function onLoad(id)
+		neededToLoad[id] = nil
+
+		if #table.keys(neededToLoad) == 0 then
+			local deps = {}
+			for _, moduleId in pairs(ids) do
+				table.insert(deps, Core.moduleCache[moduleId])
+			end
+
+			if cb then
+				cb(table.unpack(deps))
+			end
+		end
+	end
+
+	for id, _ in pairs(neededToLoad) do
+		self:loadSubModule(id, onLoad)
+	end
+end
 
 ---@param text string print logs
 function Core:print(text)
@@ -108,6 +192,11 @@ function Core:loadModule(id, body, cb)
 	Core.moduleCache[id] = result(Core)
 	Core:debug(string.format("Loaded module %s", id))
 
+	-- allows direct access to the module via JPXS.<module>
+	if Core.moduleCache[id] and Core.moduleCache[id].export and not Core[id] then
+		Core[id] = Core.moduleCache[id].export
+	end
+
 	if cb then
 		cb(id, Core.moduleCache[id])
 	end
@@ -125,6 +214,17 @@ function Core:downloadModule(id, cb, showError)
 				Core,
 				string.format("Failed to download module %s (%s)", id, response and response.status or "no response")
 			)
+		end
+	end)
+end
+
+---@param id string
+---@param cb fun(name: string, module: any)?
+---@param showError? boolean
+function Core:downloadPlugin(id, cb, showError)
+	http.get(Core.assetHost.host, Core.assetHost.path .. "plugins/" .. id .. "/init.lua", {}, function(response)
+		if response and response.status == 200 then
+			local plugin = Core.JPXSPlugin(id, Core.assetHost.path .. "plugins/" .. id .. "/")
 		end
 	end)
 end
@@ -246,5 +346,6 @@ end)
 Core:load()
 
 _G.JPXS = Core
+_G.jpxs = Core
 
 return Core
