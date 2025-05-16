@@ -1,4 +1,4 @@
-# JPXS Pluigin
+# JPXS Plugin
 
 handles 
 - jpxs networking
