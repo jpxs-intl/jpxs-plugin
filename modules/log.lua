@@ -12,13 +12,13 @@ end
 
 ---@param Client JPXSClient
 Core:getDependencies({ "client" }, function(Client)
-	hook.add("JPXSLogEvent", "jpxs.log", function(event)
+	Core.addHook("JPXSLogEvent", "log", function(event)
 		Client.sendMessage("data", "server:log", {
 			message = event,
 		})
 	end)
 
-	hook.add("JPXSAdminLogEvent", "jpxs.log", function(event)
+	Core.addHook("JPXSAdminLogEvent", "log", function(event)
 		Client.sendMessage("data", "server:log", {
 			message = event,
 			admin = true,

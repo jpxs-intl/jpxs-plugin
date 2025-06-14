@@ -1,9 +1,11 @@
 --[[loader.lua]]
 ---@class Core
 --- exports
+---@field client JPXSClient
 ---@field config JPXSConfig
+---@field plugins JPXSPluginLib
 ---@field transfer JPXSTransfer
----
+---@field devTools JPXSDevTools
 local Core = {}
 Core.debugEnabled = false
 
@@ -19,26 +21,20 @@ Core.KEEP_OUT_MESSAGE = [[
 ]]
 
 Core.credits = [[
-gart            -  main dev, gateway
-jpsh            -  exe mod and customVersion module, testing
+max             -  main dev, gateway
+jpsh            -  lots of help, testing
 checkraisefold  -  TCPClient rs module, TCPClient demo 
 ]]
 
 ---@type Plugin
 Core.plugin = ...
 Core.plugin.name = "jpxs"
-Core.plugin.author = "gart + more (/jpxs credits)"
-Core.plugin.description = "v 2.7 BETA | analytics, logging, moderation, tooling"
+Core.plugin.author = "max + more (/jpxs credits)"
+Core.plugin.description = "v 2.8 BETA | analytics, logging, moderation, tooling"
 
 ---@type {[string]: any}
 Core.moduleCache = {}
 Core.hasLoadedModules = false
-
----@type JPXSClient
-Core.client = nil
-
----@type JPXSDevTools
-Core.devTools = nil
 
 Core.assetHost = {
 	host = "https://assets.jpxs.io",
@@ -70,100 +66,31 @@ local modules = {
 	"typeLoader",
 	"readme",
 	"commands",
-	"banSync",
-	"customVersion",
 	"devTools",
-	"transfer",
+	"api",
+	"plugins",
 }
 
----@class JPXSPlugin
----@field id string
----@field name string
----@field author string
----@field description string
----@field path string
-Core.JPXSPlugin = {}
-Core.JPXSPlugin.__index = Core.JPXSPlugin
+-- globals
 
----@private
-Core.JPXSPlugin.__call = function(self, id, path)
-	local plugin = {
-		id = id,
-		name = self.name or "Unknown",
-		author = self.author or "Unknown",
-		description = self.description or "No description",
-		path = path,
-		core = Core,
-	}
-
-	setmetatable(plugin, Core.JPXSPlugin)
-
-	return plugin
-end
-
----@param self JPXSPlugin
----@param id string
----@param cb fun(name: string, module: any)?
-function Core.JPXSPlugin:loadSubModule(id, cb)
-	local path = self.path .. id .. ".lua"
-	local fileId = "plugin." .. self.id .. "." .. id
-
-	if Core.moduleCache[fileId] then
-		return Core.moduleCache[fileId]
-	end
-
-	http.get(Core.assetHost.host, path, {}, function(response)
-		if response and response.status == 200 then
-			Core:loadModule(fileId, response.body, cb)
-		else
-			Core:print(
-				string.format(
-					"Failed to download plugin %s (%s)",
-					fileId,
-					response and response.status or "no response"
-				)
-			)
-		end
-	end)
-end
-
----@param self JPXSPlugin
----@param ids string[]
----@param cb fun(name: string, module: any)?
-function Core.JPXSPlugin:loadSubModules(ids, cb)
-	local neededToLoad = {}
-	for _, id in pairs(ids) do
-		neededToLoad[id] = true
-	end
-
-	local function onLoad(id)
-		neededToLoad[id] = nil
-
-		if #table.keys(neededToLoad) == 0 then
-			local deps = {}
-			for _, moduleId in pairs(ids) do
-				table.insert(deps, Core.moduleCache[moduleId])
-			end
-
-			if cb then
-				cb(table.unpack(deps))
-			end
-		end
-	end
-
-	for id, _ in pairs(neededToLoad) do
-		self:loadSubModule(id, onLoad)
-	end
-end
+---@type {[string]: {name: string, hookName: string}}
+_G.jpxs_registeredHooks = _G.jpxs_registeredHooks or {}
+---@type true | nil
+_G.jpxs_modulesLoading = _G.jpxs_modulesLoading or nil
 
 ---@param text string print logs
 function Core:print(text)
 	print("\27[30;1m[" .. os.date("%X") .. "]\27[0m \27[38;5;202m[JPXS]\27[0m " .. text)
 end
 
+---@param text string print errors
+function Core:error(text)
+	print("\27[30;1m[" .. os.date("%X") .. "]\27[0m \27[38;5;196m[ERROR][JPXS]\27[0m " .. text)
+end
+
 ---@param text string print logs
 function Core:debug(text)
-	if Core.debugEnabled or (Core.config and Core.config.values and Core.config.values.debug == true) then
+	if Core.debugEnabled then
 		print("\27[30;1m[" .. os.date("%X") .. "]\27[0m \27[38;5;202m[DEBUG][JPXS]\27[0m " .. text)
 	end
 end
@@ -175,11 +102,50 @@ function Core.addFileHeader(content, fileName)
 	return "--[[ " .. fileName .. ".lua ]]" .. (" "):rep(32) .. content
 end
 
+---@param moduleName string
+---@param hookName string
+---@param callback fun(...: any)
+function Core.addHook(hookName, moduleName, callback)
+	local name = "jpxs | " .. moduleName
+	table.insert(_G.jpxs_registeredHooks, {
+		name = name,
+		hookName = hookName,
+	})
+
+	hook.add(hookName, name, callback)
+
+	Core:debug(string.format("\27[30;1m%s -> %s\27[0m", moduleName, hookName))
+end
+
+function Core.removeHooks()
+	if not _G.jpxs_registeredHooks then
+		return
+	end
+
+	Core:debug(string.format("Removing %s registered hooks...", table.dictLength(_G.jpxs_registeredHooks)))
+
+	-- since jdb is a fucking idiot i cant loop through hooks (its a local table)
+	-- i cant manually remove them either
+	-- so LITERALLY the only way to remove them is to add a nil function
+	-- there are so many issues with the stupid hook system
+	-- this is so fucking stupid
+	-- ts pmo
+
+	local nilFunc = function() end
+
+	for _, jpxsHook in pairs(_G.jpxs_registeredHooks) do
+		hook.add(jpxsHook.hookName, jpxsHook.name, nilFunc)
+	end
+
+	_G.jpxs_registeredHooks = {}
+end
+
 ---@private
 ---@param id string
 ---@param body string
+---@param pass any?
 ---@param cb fun(name: string, module: any)?
-function Core:loadModule(id, body, cb)
+function Core:loadModule(id, body, pass, cb)
 	local file = Core.addFileHeader(body, id)
 
 	local result, err = loadstring(file)
@@ -189,28 +155,78 @@ function Core:loadModule(id, body, cb)
 		return
 	end
 
-	Core.moduleCache[id] = result(Core)
+	Core.moduleCache[id] = result(pass or Core)
 	Core:debug(string.format("Loaded module %s", id))
 
 	-- allows direct access to the module via JPXS.<module>
-	if Core.moduleCache[id] and Core.moduleCache[id].export and not Core[id] then
-		Core[id] = Core.moduleCache[id].export
+	if Core.moduleCache[id] and Core.moduleCache[id].export then
+		local exportName = Core.moduleCache[id].exportName or id
+		Core:debug(string.format("Exporting module %s to Core (%s)", exportName, id))
+		Core[exportName] = Core.moduleCache[id].export
 	end
 
 	if cb then
-		cb(id, Core.moduleCache[id])
+		cb(Core.moduleCache[id])
 	end
+end
+
+---@param path string
+---@param cb fun(response: string | nil, error?: string)
+function Core:httpGet(path, cb)
+	http.get(Core.assetHost.host, path, {}, function(response)
+		if Core.debugEnabled then
+			Core:debug(
+				string.format(
+					"\27[30;1mGET %s%s -> %s\27[0m",
+					Core.assetHost.host,
+					path,
+					response and response.status or "no response"
+				)
+			)
+		end
+		if response and response.status == 200 then
+			cb(response.body)
+		else
+			cb(
+				nil,
+				string.format(
+					"Failed to get %s%s (%s)",
+					Core.assetHost,
+					path,
+					response and response.status or "no response"
+				)
+			)
+		end
+	end)
 end
 
 ---@param id string
 ---@param cb fun(name: string, module: any)?
 ---@param showError? boolean
 function Core:downloadModule(id, cb, showError)
-	http.get(Core.assetHost.host, Core.assetHost.path .. "modules/" .. id .. ".lua", {}, function(response)
-		if response and response.status == 200 then
-			Core:loadModule(id, response.body, cb)
+	Core:httpGet(Core.assetHost.path .. "modules/" .. id .. ".lua", function(response)
+		if response then
+			Core:loadModule(id, response, Core, cb)
 		else
-			(showError and Core.print or Core.debug)(
+			(showError and Core.error or Core.debug)(
+				Core,
+				string.format("Failed to download module %s (%s)", id, response and response.status or "no response")
+			)
+		end
+	end)
+end
+
+---@param path string
+---@param pass any?
+---@param cb fun(name: string, module: any)?
+---@param showError? boolean
+function Core:downloadModuleAdv(path, pass, cb, showError)
+	local id = path:gsub("/", "."):gsub("%.lua$", "")
+	Core:httpGet(Core.assetHost.path .. path .. ".lua", function(response)
+		if response then
+			Core:loadModule(id, response, pass or Core, cb)
+		else
+			(showError and Core.error or Core.debug)(
 				Core,
 				string.format("Failed to download module %s (%s)", id, response and response.status or "no response")
 			)
@@ -221,23 +237,23 @@ end
 ---@param id string
 ---@param cb fun(name: string, module: any)?
 ---@param showError? boolean
-function Core:downloadPlugin(id, cb, showError)
-	http.get(Core.assetHost.host, Core.assetHost.path .. "plugins/" .. id .. "/init.lua", {}, function(response)
-		if response and response.status == 200 then
-			local plugin = Core.JPXSPlugin(id, Core.assetHost.path .. "plugins/" .. id .. "/")
-		end
-	end)
-end
-
----@param id string
----@param cb fun(name: string, module: any)?
----@param showError? boolean
 function Core:loadGartbin(id, cb, showError)
-	http.get(Core.bin.host, "/" .. id .. "/raw", {}, function(response)
+	local path = Core.bin.host .. "/" .. id .. "/raw"
+	http.get(Core.bin.host, path, {}, function(response)
+		if Core.debugEnabled then
+			Core:debug(
+				string.format(
+					"GET %s%s -> %s",
+					Core.assetHost.host,
+					path,
+					response and response.status or "no response"
+				)
+			)
+		end
 		if response and response.status == 200 then
-			Core:loadModule(id, response.body, cb)
+			Core:loadModule(id, response.body, Core, cb)
 		else
-			(showError and Core.print or Core.debug)(
+			(showError and Core.error or Core.debug)(
 				Core,
 				string.format("Failed to download bin %s (%s)", id, response and response.status or "no response")
 			)
@@ -246,14 +262,29 @@ function Core:loadGartbin(id, cb, showError)
 end
 
 ---@param id string
----@param cb fun(name: string, module: any)?
+---@param cb fun(module: any)?
 function Core:getOrDownloadModule(id, cb)
 	if Core.moduleCache[id] then
 		if cb then
-			cb(id, Core.moduleCache[id])
+			cb(Core.moduleCache[id])
 		end
 	else
 		Core:downloadModule(id, cb)
+	end
+end
+
+---@param path string
+---@param pass any?
+---@param cb fun(module: any)?
+---@param showError? boolean
+function Core:getOrDownloadModuleAdv(path, pass, cb, showError)
+	local id = path:gsub("/", "."):gsub("%.lua$", "")
+	if Core.moduleCache[id] then
+		if cb then
+			cb(Core.moduleCache[id])
+		end
+	else
+		Core:downloadModuleAdv(path, pass, cb, showError)
 	end
 end
 
@@ -265,7 +296,9 @@ end
 
 ---@param modules string[]
 ---@param cb fun(...: any[])?
-function Core:getDependencies(modules, cb)
+---@param loadMethod? fun(Core: Core, id: string, callback: fun(module: any)?)
+function Core:getDependencies(modules, cb, loadMethod)
+	loadMethod = loadMethod or Core.getOrDownloadModule
 	local neededToLoad = {}
 	for _, id in pairs(modules) do
 		neededToLoad[id] = true
@@ -287,28 +320,39 @@ function Core:getDependencies(modules, cb)
 	end
 
 	for id, _ in pairs(neededToLoad) do
-		Core:getOrDownloadModule(id, onLoad)
+		loadMethod(Core, id, function(module)
+			onLoad(id)
+		end)
 	end
 end
 
 function Core:load()
-	if _G["JPXS_🍆"] then
+	if _G.jpxs_modulesLoading then
 		Core:print("Modules are already loading! Please wait.")
 		return
 	end
 
-	_G["JPXS_🍆"] = true
+	_G.jpxs_modulesLoading = true
+
+	-- check for existing debug.lock file
+	local debugLockFile = Core.storagePath .. "debug.lock"
+	if io.open(debugLockFile, "r") then
+		Core.debugEnabled = true
+		Core:debug("Debugging is enabled (debug.lock file found)")
+	end
+
+	Core.removeHooks() -- remove hooks in case of jpxs reload
 
 	local function postLoad()
-		Core:getOrDownloadModule("client", function(_, Client)
+		Core:getOrDownloadModule("client", function(Client)
 			Client.connect()
 			Client.onConnect = function()
 				if not Core.hasLoadedModules then
 					Core:getDependencies(modules, function()
 						Core.hasLoadedModules = true
-						_G["JPXS_🍆"] = nil
+						_G.jpxs_modulesLoading = nil
 
-						Core:print("Loaded!")
+						Core:debug("Initial load complete, running post-load hooks...")
 						hook.run("JPXSLoaded")
 					end)
 				end
@@ -316,13 +360,13 @@ function Core:load()
 		end)
 	end
 
-	-- check for polyfill (minimum version 2)
-	if _G.polyfill and _G.polyfill.version >= 2 then
+	-- check for polyfill (minimum version 3)
+	if _G.polyfill and _G.polyfill.version >= 3 then
 		postLoad()
 	else
-		http.get(Core.assetHost.host, "/plugins/lib/polyfill.lua", {}, function(response)
-			if response and response.status == 200 then
-				loadstring(response.body)()
+		Core:httpGet("/plugins/lib/polyfill.lua", function(response)
+			if response then
+				loadstring(response)()
 				Core:debug("Polyfill loaded")
 
 				postLoad()
@@ -331,16 +375,28 @@ function Core:load()
 			end
 		end)
 	end
+
+	-- load inspect
+	if not _G.inspect then
+		Core:httpGet("/plugins/lib/inspect.lua", function(response)
+			if response then
+				_G.inspect = loadstring(response)()
+				Core:debug("Inspect loaded")
+			else
+				Core:print("Failed to download inspect")
+			end
+		end)
+	else
+		Core:debug("Inspect already loaded")
+	end
 end
 
 --- Config values
----@param Config JPXSConfig
-hook.add("JPXSConfigInit", "jpxs.configLoader", function(Config)
+Core.addHook("JPXSConfigInit", "configLoader", function()
 	Core:debug("Registering config values")
 
-	Config:registerConfigValue("debug", false, "boolean", "Enable debug mode")
-	Config:registerConfigValue("updateInterval", 60 * 15, "integer", "Data update interval, in ticks")
-	Config:registerConfigValue("connectionMethod", "http", "string", "Connection method (http, tcp)")
+	Core.config:registerConfigValue("updateInterval", 60 * 15, "integer", "Data update interval, in ticks")
+	-- Config:registerConfigValue("connectionMethod", "http", "string", "Connection method (http, tcp)")
 end)
 
 Core:load()

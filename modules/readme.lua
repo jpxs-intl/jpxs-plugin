@@ -9,7 +9,7 @@ please don't mess with any of this, if you want to edit config use 'jpxs config 
 it's literally months of work here and I don't want it fucking with something on the server.
 
 thanks, 
-gart                                                  
+max
 
 p.s. I've added this folder to your .gitignore if you had one :3]]
 

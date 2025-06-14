@@ -95,7 +95,7 @@ function Util.formatTime(time)
 	return result
 end
 
-hook.add("Logic", "jpxs.util", function()
+Core.addHook("Logic", "util", function()
 	local i = 0
 	for _, timer in pairs(timers) do
 		i = i + 1

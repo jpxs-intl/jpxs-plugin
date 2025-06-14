@@ -3,11 +3,11 @@ local Core = ...
 
 ---@param Client JPXSClient
 Core:getDependencies({ "client" }, function(Client)
-	hook.add("PostPlayerCreate", "jpxs.players", function(player)
+	Core.addHook("PostPlayerCreate", "players", function(player)
 		Core.awaitingPlayers[player.index] = true
 	end)
 
-	hook.add("Logic", "jpxs.players", function()
+	Core.addHook("Logic", "players", function()
 		for index, _ in pairs(Core.awaitingPlayers) do
 			local ply = players[index]
 
@@ -35,7 +35,7 @@ Core:getDependencies({ "client" }, function(Client)
 			Core.awaitingPlayers[index] = nil
 		end
 
-		if server.ticksSinceReset % Core.config:get("updateInterval") == 0 then
+		if server.ticksSinceReset % (Core.config:get("updateInterval") or 300) == 0 then
 			local playerListData = {}
 
 			for _, player in pairs(players.getNonBots()) do
@@ -61,7 +61,7 @@ Core:getDependencies({ "client" }, function(Client)
 		end
 	end)
 
-	hook.add("PlayerDelete", "jpxs.players", function(player)
+	Core.addHook("PlayerDelete", "players", function(player)
 		if player.account == nil or player.isBot then
 			return
 		end
@@ -71,7 +71,7 @@ Core:getDependencies({ "client" }, function(Client)
 		})
 	end)
 
-	hook.add("PlayerChat", "jpxs.players", function(player, message)
+	Core.addHook("PlayerChat", "players", function(player, message)
 		if player.account == nil or player.isBot then
 			return
 		end
@@ -83,7 +83,7 @@ Core:getDependencies({ "client" }, function(Client)
 		})
 	end)
 
-	hook.add("PostEventUpdatePlayerFinance", "jpxs.players", function(player)
+	Core.addHook("PostEventUpdatePlayerFinance", "players", function(player)
 		if player.account == nil or player.isBot then
 			return
 		end

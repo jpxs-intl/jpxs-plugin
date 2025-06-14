@@ -12,7 +12,7 @@ Client.port = 4000
 Client.reconnectTimer = 1200
 
 ---@type TCP
-Client.interface = nil
+Client.tcp = nil
 ---@type string
 Client.tag = nil
 ---@type string
@@ -29,6 +29,9 @@ Client.onConnect = nil
 
 ---@type number
 Client.ping = 0
+
+---@type {[number]: function}
+Client.callbacks = {}
 
 Client.seperator = "//"
 
@@ -94,20 +97,21 @@ Client.eventHandlers = {
 
 		if Client.onConnect then
 			Client.onConnect()
-			hook.run("JPXSConnected", Client)
 		end
+
+		hook.run("JPXSConnected", Client)
 
 		Client.clientId = msg.clientId
 		Client.serverId = msg.serverId
 		Client.address = msg.address
 
 		Client.isInvalid = false
+
+		Client.subscribe("server:" .. Client.serverId)
+		Client.subscribe("api")
 	end,
 	["auth:fail"] = function(msg)
 		Core:print("Failed to authenticate with JPXS gateway: " .. msg.message)
-	end,
-	["ping"] = function(msg)
-		Client.ping = (os.realClock() - msg.data.sentAt) * 1000
 	end,
 }
 
@@ -115,21 +119,35 @@ Client.eventHandlers = {
 ---@param interface TCP
 function Client._handleConnection(interface)
 	Core:debug("Connecting to JPXS gateway...")
-	Client.interface = interface.connect(Client.host, Client.port)
+	Client.tcp = interface.connect(Client.host, Client.port)
 
-	Client.interface:onMessage(function(message)
+	Client.tcp:onMessage(function(message)
 		local parts = message:split(Client.seperator)
 		for _, part in pairs(parts) do
 			local length, encoded = part:match("^(%d+):(.+)$")
 			if encoded then
-				local msg = json.decode(encoded)
-				if not msg or not msg.data then
-					return
-				end
+				local success = pcall(function()
+					local msg = json.decode(encoded)
+					if not msg or not msg.data then
+						return
+					end
 
-				local handler = Client.eventHandlers[msg.event]
-				if handler then
-					handler(msg.data)
+					if msg.data.requestId then
+						local callback = Client.callbacks[msg.data.requestId]
+						if callback then
+							callback(msg.data)
+							Client.callbacks[msg.data.requestId] = nil
+						end
+					end
+
+					local handler = Client.eventHandlers[msg.event]
+					if handler then
+						handler(msg.data)
+					end
+				end)
+
+				if not success then
+					Core:debug("Failed to decode message: " .. encoded)
 				end
 			else
 				Core:debug("Invalid message: " .. part)
@@ -168,7 +186,30 @@ function Client._createEvent(channel, event, data)
 		data = data,
 	})
 
-	Client.interface:sendMessage(string.format("%s" .. Client.seperator, msg))
+	if not Client.tcp then
+		Core:debug("Client is not connected to the gateway.")
+		return
+	end
+
+	Client.tcp:sendMessage(string.format("%s" .. Client.seperator, msg))
+end
+
+--- send a request to the server, expects a response
+---@param channelId string channel id
+---@param event string event name
+---@param data any data to send
+---@param cb fun(msg: {sender: string, timestamp: number, [string]: any}) callback function
+function Client.request(channelId, event, data, cb)
+	local requestId = math.random(1, 1000000)
+
+	if data.requestId then
+		Core:print("!! WARNING !! requestId is a reserved field and will be overridden.")
+	end
+
+	data.requestId = requestId
+
+	Client._createEvent(channelId, event, data)
+	Client.callbacks[requestId] = cb
 end
 
 --- Subscribe to a channel. Will create the channel if it doesn't exist.
@@ -193,7 +234,6 @@ end
 ---@param event string
 ---@param handler fun(msg: {sender: string, timestamp: number, [string]: any})
 function Client.registerEventHandler(event, handler)
-	-- print("Registering event handler for " .. event)
 	Client.eventHandlers[event] = handler
 end
 
@@ -205,13 +245,16 @@ function Client.sendMessage(channelId, event, data)
 	Client._createEvent(channelId, event, data)
 end
 
-hook.add("Logic", "jpxs.keepalive", function()
+Core.addHook("Logic", "keepalive", function()
 	if server.ticksSinceReset % Client.reconnectTimer == 0 then
-		if not Client.interface then
+		if not Client.tcp then
 			Client.connect()
 		else
-			if Client.interface.connected then
-				Client._createEvent("ping", "ping", { sentAt = os.realClock() })
+			if Client.tcp.connected then
+				Client.request("ping", "ping", { sentAt = os.realClock() }, function(msg)
+					Client.ping = (os.realClock() - msg.data.sentAt) * 1000
+					hook.run("JPXSPing", Client.ping)
+				end)
 			else
 				Core:debug("Lost connection to the JPXS gateway, attempting to reconnect...")
 				Client.hasInit = false

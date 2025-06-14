@@ -2,7 +2,12 @@
 local Core = ...
 
 ---@class InstructionManager
-local InstructionManager = {}
+local InstructionManager = {
+	---@type {[string]: boolean}
+	disabledHandlers = {
+		["eval"] = true,
+	},
+}
 
 ---@class Instruction
 ---@field type string
@@ -24,6 +29,15 @@ Core:getDependencies({ "client" }, function(Client)
 		local type = msg.type
 		local id = msg.id
 		local data = msg.data
+
+		if InstructionManager.disabledHandlers[type] then
+			Client.sendMessage("instruction", "instruction:response", {
+				id = id,
+				success = false,
+				res = "Handler for instruction type " .. type .. " is disabled.",
+			})
+			return
+		end
 
 		local handler = InstructionManager.handlers[type]
 		if not handler then

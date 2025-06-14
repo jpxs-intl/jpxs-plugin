@@ -27,16 +27,14 @@ function WorkerLoader.load(worker, cb)
 
 	Core:debug("Requesting worker " .. Core.assetHost.host .. requestPath)
 
-	http.get(Core.assetHost.host, requestPath, {}, function(res)
-		if res and res.status == 200 then
-			Core:debug("Writing worker " .. worker .. " to " .. workerPath)
-
+	Core:httpGet(requestPath, function(res)
+		if res then
 			local file = io.open(workerPath, "w")
 			if not file then
 				Core:debug("Failed to write worker " .. worker)
 				return
 			end
-			file:write(Core.addFileHeader(res.body, worker .. ".worker"))
+			file:write(Core.addFileHeader(res, worker .. ".worker"))
 			file:close()
 
 			Core:debug("Downloaded worker " .. worker)

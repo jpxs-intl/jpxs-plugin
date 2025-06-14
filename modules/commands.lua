@@ -1,17 +1,6 @@
 ---@type Core
 local Core = ...
 
----@param str string
----@param list string[]
-local function autoComplete(str, list)
-	for _, v in ipairs(list) do
-		if v:startsWith(str) then
-			return v
-		end
-	end
-	return str
-end
-
 ---@class JPXSCommand
 ---@field info string
 ---@field usage string
@@ -246,108 +235,13 @@ Core.commands["eventhandlers"] = {
 	end,
 }
 
-Core.commands["ban"] = {
-	info = "Bans a player, and syncs it to other synced servers",
-	usage = "ban <player> [time] [reason]",
-	call = function(args)
-		---@type Util
-		local util = Core:getModule("util")
-
-		local targetAccount = findOneAccount(args[2])
-		local duration = args[3] and util.parseTime(args[3]) or 0
-		local reason = args[4] or "No reason provided"
-
-		targetAccount.banTime = duration
-		accounts.save()
-
-		---@type JPXSBanSync
-		local banSync = Core:getModule("banSync")
-		banSync:ban(tostring(targetAccount.phoneNumber), reason, duration)
-
-		local timeFormatted = duration == 0 and "forever" or util.formatTime(duration)
-
-		chat.tellAdminsWrap(string.format("Console banned %s for %s: %s", targetAccount.name, timeFormatted, reason))
-		Core:print(string.format("Console banned %s for %s: %s", targetAccount.name, timeFormatted, reason))
-	end,
-	canCall = function(player)
-		return player.isAdmin
-	end,
-	callChat = function(player, args)
-		---@type Util
-		local util = Core:getModule("util")
-
-		local targetAccount = findOneAccount(args[2])
-		local duration = args[3] and util.parseTime(args[3]) or 0
-		local reason = args[4] or "No reason provided"
-
-		targetAccount.banTime = duration == 0 and 2147483647 or duration
-		accounts.save()
-
-		---@type JPXSBanSync
-		local banSync = Core:getModule("banSync")
-		banSync:ban(tostring(targetAccount.phoneNumber), reason, duration)
-
-		local timeFormatted = duration == 0 and "forever" or util.formatTime(duration)
-
-		chat.tellAdminsWrap(
-			string.format("%s banned %s for %s: %s", player.name, targetAccount.name, timeFormatted, reason)
-		)
-		Core:print(string.format("%s banned %s for %s: %s", player.name, targetAccount.name, timeFormatted, reason))
-	end,
-}
-
-Core.commands["config"] = {
-	info = "View and modify config values",
-	usage = "jpxs config [key] [value]",
-	call = function(args)
-		local key = args[2]
-		local value = args[3]
-
-		---@type JPXSConfig
-		local config = Core:getModule("config")
-
-		if key then
-			if value then
-				config:set(key, value)
-				print(string.format("Set %s to %s", key, value))
-			else
-				local val = config.values[key]
-
-				if not val then
-					print(string.format("Config value %s not found", key))
-					return
-				end
-
-				print(string.format("\x1b[36;1m%s", key))
-				print(string.format("  \x1b[0m%s", val.description))
-				print(string.format("  \x1b[36;1mType: \x1b[0m%s", val.type))
-				print(string.format("  \x1b[36;1mValue: \x1b[0m%s", val.value))
-				print(string.format("  \x1b[36;1mDefault: \x1b[0m%s", val.default))
-			end
-		else
-			-- sort the config values by key
-			local sortedKeys = {}
-
-			for key in pairs(config.values) do
-				table.insert(sortedKeys, key)
-			end
-
-			table.sort(sortedKeys)
-
-			for _, key in ipairs(sortedKeys) do
-				print(string.format("\x1b[36;1m%s\x1b[0m - %s", key, config.values[key].description))
-			end
-		end
-	end,
-}
-
 -- actual command, handles processing input and calling the correct subcommand
 
 Core.plugin.commands["/jpxs"] = {
 	info = "JPXS commands",
 	autoComplete = function(args)
 		if #args == 1 then
-			args[1] = autoComplete(args[1], table.keys(Core.commands))
+			args[1] = filterTableStartsWith(args[1], table.keys(Core.commands))
 		end
 	end,
 	---@param player string[] | Player
@@ -398,7 +292,7 @@ Core.plugin.commands["/jpxs"] = {
 						print(string.format("\x1b[31;1mUsage: %s\x1b[0m", command.usage))
 					else
 						print("An error occurred while executing the command.")
-						print(stripped)
+						error(errorString)
 					end
 				end
 			else

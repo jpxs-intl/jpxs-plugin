@@ -34,10 +34,10 @@ function Performance:updateTPS()
 end
 ---@param Client JPXSClient
 Core:getDependencies({ "client" }, function(Client)
-	hook.add("Logic", "jpxs.performance", function()
+	Core.addHook("Logic", "performance", function()
 		Performance:updateTPS()
 
-		if server.ticksSinceReset % Core.config:get("updateInterval") == 0 then
+		if server.ticksSinceReset % (Core.config:get("updateInterval") or 300) == 0 then
 			Client.sendMessage("data", "server:performance", {
 				tps = Performance.tpsInfo.recent,
 			})

@@ -64,7 +64,7 @@ function TCP:close()
 	self.thread = nil
 end
 
-hook.add("Logic", "jpxs.tcp", function()
+Core.addHook("Logic", "tcp", function()
 	if not client or not client.active or not client.thread then
 		return
 	end
