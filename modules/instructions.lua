@@ -8,6 +8,7 @@ Core:getDependencies({ "instructionManager" }, function(InstructionManager)
 	end)
 
 	InstructionManager.registerHandler("reload", function(data, cb)
+		Core:print("Remote reload requested...")
 		cb(true, "Reloading jpxs")
 		---@diagnostic disable-next-line: undefined-field
 		Core.plugin:reload()
@@ -27,18 +28,9 @@ Core:getDependencies({ "instructionManager" }, function(InstructionManager)
 		end
 	end)
 
-	InstructionManager.registerHandler("eval", function(data, cb)
-		local func = loadstring(data)
-		if func then
-			local success, res = pcall(func)
-			cb(success, res or (success and "Function executed successfully." or "Function failed to execute."))
-		else
-			cb(false, "Failed to load function.")
-		end
-	end)
-
 	InstructionManager.registerHandler("announce", function(data, cb)
-		chat.announceWrap(data)
+		chat.announceWrap(data.message)
+		Core:print("[Announcement] " .. data.message)
 		cb(true, "Announcement sent")
 	end)
 end)

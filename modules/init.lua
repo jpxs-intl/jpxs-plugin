@@ -13,19 +13,7 @@ local function getModeInformation()
 	return nil
 end
 
----@param Client JPXSClient
----@param Config JPXSConfig
-Core:getDependencies({ "client", "config" }, function(Client, Config)
-	Config:registerConfigValue("serverListIcon", "<default>", "string", "Icon to display in the server list")
-	Config:registerConfigValue(
-		"serverListDescription",
-		"<default>",
-		"string",
-		"Description to display in the server list"
-	)
-	Config:registerConfigValue("serverListUrl", "<default>", "string", "URL to display in the server list")
-	Config:registerConfigValue("serverListTags", "<default>", "string", "Tags to display in the server list")
-
+local function init()
 	local mode = getModeInformation()
 	---@type {name: string, subRosaId: string}[]
 	local bans = {}
@@ -36,28 +24,43 @@ Core:getDependencies({ "client", "config" }, function(Client, Config)
 		end
 	end
 
-	local function init()
-		Client.sendMessage("data", "server:init", {
-			name = server.name,
-			port = server.port,
-			type = server.type,
-			mode = mode and {
-				name = mode.name,
-				author = mode.author,
-				description = mode.description,
-			} or nil,
-			bans = bans,
-			config = {
-				identifier = Config:get("identifier"),
-				serverListIcon = Core.config:get("serverListIcon"),
-				serverListDescription = Core.config:get("serverListDescription"),
-				serverListUrl = Core.config:get("serverListUrl"),
-				serverListTags = Core.config:get("serverListTags"),
-			},
-		})
+	Core.client.sendMessage("data", "server:init", {
+		name = server.name,
+		port = server.port,
+		type = server.type,
+		mode = mode and {
+			name = mode.name,
+			author = mode.author,
+			description = mode.description,
+		} or nil,
+		bans = bans,
+		config = {
+			identifier = Core.config:get("identifier"),
+			serverListIcon = Core.config:get("serverListIcon"),
+			serverListDescription = Core.config:get("serverListDescription"),
+			serverListUrl = Core.config:get("serverListUrl"),
+			serverListTags = Core.config:get("serverListTags"),
+		},
+	})
+end
+
+Core.addHook("JPXSConfigInit", "init", function()
+	Core.config:registerConfigValue("serverListIcon", "<default>", "string", "Icon to display in the server list")
+	Core.config:registerConfigValue(
+		"serverListDescription",
+		"<default>",
+		"string",
+		"Description to display in the server list"
+	)
+	Core.config:registerConfigValue("serverListUrl", "<default>", "string", "URL to display in the server list")
+	Core.config:registerConfigValue("serverListTags", "<default>", "string", "Tags to display in the server list")
+end)
+
+Core.addHook("JPXSLoaded", "init", init)
+Core.addHook("JPXSConnected", "init", init)
+Core.addHook("PostResetGame", "init", init)
+Core.addHook("Logic", "init", function()
+	if server.ticksSinceReset % 18750 == 0 then
+		init()
 	end
-
-	Client.registerEventHandler("auth:success", init)
-
-	init()
 end)

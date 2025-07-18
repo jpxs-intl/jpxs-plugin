@@ -4,9 +4,7 @@ local Core = ...
 ---@class InstructionManager
 local InstructionManager = {
 	---@type {[string]: boolean}
-	disabledHandlers = {
-		["eval"] = true,
-	},
+	disabledHandlers = {},
 }
 
 ---@class Instruction
@@ -20,18 +18,20 @@ InstructionManager.handlers = {}
 ---@param type string
 ---@param handler fun(data: any, cb: fun(success: boolean, res: string))
 function InstructionManager.registerHandler(type, handler)
+	Core:debug("Registering instruction handler for type: " .. type)
 	InstructionManager.handlers[type] = handler
 end
 
 ---@param Client JPXSClient
 Core:getDependencies({ "client" }, function(Client)
+	Client.subscribe("instruction")
 	Client.registerEventHandler("instruction:execute", function(msg)
 		local type = msg.type
 		local id = msg.id
 		local data = msg.data
 
 		if InstructionManager.disabledHandlers[type] then
-			Client.sendMessage("instruction", "instruction:response", {
+			Client.sendMessage("instructionResponse", "instruction:response", {
 				id = id,
 				success = false,
 				res = "Handler for instruction type " .. type .. " is disabled.",
@@ -41,7 +41,7 @@ Core:getDependencies({ "client" }, function(Client)
 
 		local handler = InstructionManager.handlers[type]
 		if not handler then
-			Client.sendMessage("instruction", "instruction:response", {
+			Client.sendMessage("instructionResponse", "instruction:response", {
 				id = id,
 				success = false,
 				res = "No handler for instruction type: " .. type,
@@ -50,7 +50,7 @@ Core:getDependencies({ "client" }, function(Client)
 		end
 
 		handler(data, function(success, res)
-			Client.sendMessage("instruction", "instruction:response", {
+			Client.sendMessage("instructionResponse", "instruction:response", {
 				id = id,
 				success = success,
 				res = res,

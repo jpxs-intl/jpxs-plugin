@@ -21,6 +21,7 @@
 ---@field client JPXSClient ⚠️⚠️ DANGER ⚠️⚠️ ONLY use this if you know its loaded, otherwise use `Core.getDependencies`
 ---@field transfer JPXSTransferPublic
 ---@field api JPXSAPIPublic
+---@field patchset JPXSPatchSetPublic
 
 ---@class JPXSTransferPublic
 ---@field identifier string
@@ -37,6 +38,17 @@
 ---@class JPXSAPIPublic
 ---@field getPing fun(self: JPXSAPIPublic, cb: fun(ping: number))
 ---@field getServerInfo fun(self: JPXSAPIPublic, identifier: string, cb: fun(res: {success: boolean, error: string?, ip: string?, port: integer?, clientId: string?, name: string?}))
+
+---@class JPXSPatchSetPublic
+---@field name string The name of the patch set.
+---@field patchSets table<string, JPXSPatchSet> A table of patch sets, indexed by name.
+---@field patches table<number, JPXSPatch> A table of patches in the patch set, indexed by address.
+---@field create fun(name: string) Create a new patch set with the given name.
+---@field get fun(name: string) Get a patch set by name.
+---@field revert fun(self: JPXSPatchSetPublic | string) Revert the patch set, restoring all original values.
+---@field revertAll fun(self: JPXSPatchSetPublic) Revert all patch sets, restoring all original values.
+---@field writeByte fun(self: JPXSPatchSetPublic, addr: number, value: number, description?: string) Write an unsigned byte to the specified address.
+---@field writeBytes fun(self: JPXSPatchSetPublic, addr: number, values: table<number>, description?: string) Write multiple unsigned bytes to the specified address.
 
 do
 	---@type JPXSCorePublic

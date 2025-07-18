@@ -235,7 +235,7 @@ end
 
 ---@param Config JPXSConfig
 Core:getDependencies({ "config" }, function(Config)
-	Config:registerConfigValue("plugins", {}, "table", "List of plugins to load", true)
+	Config:registerConfigValue("plugins", Core.defaultPlugins, "table", "List of plugins to load", true)
 end)
 
 Core.addHook("JPXSConfigLoaded", "plugins", function()

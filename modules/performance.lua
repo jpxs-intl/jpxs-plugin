@@ -37,7 +37,7 @@ Core:getDependencies({ "client" }, function(Client)
 	Core.addHook("Logic", "performance", function()
 		Performance:updateTPS()
 
-		if server.ticksSinceReset % (Core.config:get("updateInterval") or 300) == 0 then
+		if server.ticksSinceReset % 950 == 0 then
 			Client.sendMessage("data", "server:performance", {
 				tps = Performance.tpsInfo.recent,
 			})

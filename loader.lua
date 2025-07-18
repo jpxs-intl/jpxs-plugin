@@ -6,8 +6,8 @@
 ---@field plugins JPXSPluginLib
 ---@field transfer JPXSTransfer
 ---@field devTools JPXSDevTools
+---@field patchset JPXSPatchSetLib
 local Core = {}
-Core.debugEnabled = false
 
 Core.KEEP_OUT_MESSAGE = [[
 -- ##############################################################
@@ -16,7 +16,7 @@ Core.KEEP_OUT_MESSAGE = [[
 -- if you're seeing this, and you're looking to tinker with it,
 -- please don't, it's literally months of work here and
 -- I don't want it fucking with something on the server
--- thanks, gart
+-- thanks, max
 -- ##############################################################
 ]]
 
@@ -32,20 +32,24 @@ Core.plugin.name = "jpxs"
 Core.plugin.author = "max + more (/jpxs credits)"
 Core.plugin.description = "v 2.8 BETA | analytics, logging, moderation, tooling"
 
+Core.overrides = Core.overrides or {}
+
 ---@type {[string]: any}
 Core.moduleCache = {}
 Core.hasLoadedModules = false
 
-Core.assetHost = {
+Core.debugEnabled = Core.overrides.debugEnabled or false
+
+Core.assetHost = Core.overrides.assetHost or {
 	host = "https://assets.jpxs.io",
 	path = "/plugins/jpxs/",
 }
 
-Core.bin = {
+Core.bin = Core.overrides.bin or {
 	host = "https://bin.gart.sh",
 }
 
-Core.storagePath = ".jpxs/"
+Core.storagePath = Core.overrides.storagePath or ".jpxs/"
 
 ---@type {string: JPXSCommand}
 Core.commands = {}
@@ -54,21 +58,29 @@ Core.commands = {}
 Core.awaitingPlayers = {}
 
 ---@type {[string]: any}
-Core.overrides = {}
 
 --- modules to request
-local modules = {
-	"init",
-	"players",
-	"instructions",
-	"log",
-	"performance",
-	"typeLoader",
-	"readme",
-	"commands",
-	"devTools",
-	"api",
-	"plugins",
+local modules = Core.overrides.modules
+	or {
+		"init",
+		"players",
+		"instructions",
+		"log",
+		"performance",
+		"typeLoader",
+		"readme",
+		"commands",
+		"devTools",
+		"api",
+		"patchset",
+		"plugins",
+	}
+
+---Default plugins to load
+Core.defaultPlugins = Core.overrides.defaultPlugins or {
+	"autoupdater",
+	"gmsg",
+	"tt",
 }
 
 -- globals
@@ -125,16 +137,12 @@ function Core.removeHooks()
 	Core:debug(string.format("Removing %s registered hooks...", table.dictLength(_G.jpxs_registeredHooks)))
 
 	-- since jdb is a fucking idiot i cant loop through hooks (its a local table)
-	-- i cant manually remove them either
-	-- so LITERALLY the only way to remove them is to add a nil function
 	-- there are so many issues with the stupid hook system
 	-- this is so fucking stupid
 	-- ts pmo
 
-	local nilFunc = function() end
-
 	for _, jpxsHook in pairs(_G.jpxs_registeredHooks) do
-		hook.add(jpxsHook.hookName, jpxsHook.name, nilFunc)
+		hook.remove(jpxsHook.hookName, jpxsHook.name)
 	end
 
 	_G.jpxs_registeredHooks = {}
@@ -341,9 +349,9 @@ function Core:load()
 		Core:debug("Debugging is enabled (debug.lock file found)")
 	end
 
-	Core.removeHooks() -- remove hooks in case of jpxs reload
-
 	local function postLoad()
+		Core.removeHooks() -- remove hooks in case of jpxs reload
+
 		Core:getOrDownloadModule("client", function(Client)
 			Client.connect()
 			Client.onConnect = function()

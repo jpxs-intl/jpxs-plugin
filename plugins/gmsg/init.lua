@@ -41,8 +41,8 @@ plugin.rsPlugin.commands["/gmsg"] = {
 
 		jpxs.client.sendMessage("globalmessage", "globalmessage:message", {
 			message = table.concat(args, " "),
-			sender = player.phoneNumber,
-			senderName = player.account.name,
+			sender = player.isConsole and "000-0000" or player.phoneNumber,
+			senderName = player.isConsole and "Console" or player.account.name,
 			serverName = server.name,
 			recipient = recipient,
 		})

@@ -6,10 +6,10 @@ local json = require("main.json")
 ---@class JPXSClient
 local Client = {}
 
-Client.host = "gateway.jpxs.io"
+Client.host = (Core.overrides and Core.overrides.gateway) and Core.overrides.gateway.host or "gateway.jpxs.io"
 Client.path = "/events"
-Client.port = 4000
-Client.reconnectTimer = 1200
+Client.port = (Core.overrides and Core.overrides.gateway) and Core.overrides.gateway.port or 4000
+Client.reconnectTimer = (Core.overrides and Core.overrides.gateway) and Core.overrides.gateway.reconnectTimer or 1200
 
 ---@type TCP
 Client.tcp = nil
@@ -33,13 +33,7 @@ Client.ping = 0
 ---@type {[number]: function}
 Client.callbacks = {}
 
-Client.seperator = "//"
-
--- force overrides so we can connect to alt servers
-if Core.overrides then
-	Client.host = Core.overrides.gatewayHost or Client.host
-	Client.port = Core.overrides.gatewayPort or Client.port
-end
+Client.seperator = "\r\n"
 
 ---@type {[string]: fun(msg: {sender: string, timestamp: number, [string]: any})}
 Client.eventHandlers = {
@@ -66,7 +60,7 @@ Client.eventHandlers = {
 		end
 	end,
 	["auth:delay"] = function(msg)
-		Core:print("[gateway] " .. msg.message)
+		Core:print("gateway: " .. msg.message)
 	end,
 	["auth:invalidate"] = function(msg)
 		if Client.isInvalid then
@@ -126,8 +120,11 @@ function Client._handleConnection(interface)
 		for _, part in pairs(parts) do
 			local length, encoded = part:match("^(%d+):(.+)$")
 			if encoded then
-				local success = pcall(function()
+				local success, message = pcall(function()
 					local msg = json.decode(encoded)
+
+					hook.run("JPXSMessageReceived", msg)
+
 					if not msg or not msg.data then
 						return
 					end
@@ -147,6 +144,7 @@ function Client._handleConnection(interface)
 				end)
 
 				if not success then
+					print(inspect(message))
 					Core:debug("Failed to decode message: " .. encoded)
 				end
 			else
@@ -190,6 +188,12 @@ function Client._createEvent(channel, event, data)
 		Core:debug("Client is not connected to the gateway.")
 		return
 	end
+
+	hook.run("JPXSMessageSent", {
+		channel = channel,
+		event = event,
+		data = data,
+	})
 
 	Client.tcp:sendMessage(string.format("%s" .. Client.seperator, msg))
 end
