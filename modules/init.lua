@@ -35,6 +35,7 @@ local function init()
 		} or nil,
 		bans = bans,
 		config = {
+			hidden = Core.config:get("hidden"),
 			identifier = Core.config:get("identifier"),
 			serverListIcon = Core.config:get("serverListIcon"),
 			serverListDescription = Core.config:get("serverListDescription"),
@@ -45,6 +46,7 @@ local function init()
 end
 
 Core.addHook("JPXSConfigInit", "init", function()
+	Core.config:registerConfigValue("hidden", false, "boolean", "Whether the server is hidden from the server list")
 	Core.config:registerConfigValue("serverListIcon", "<default>", "string", "Icon to display in the server list")
 	Core.config:registerConfigValue(
 		"serverListDescription",

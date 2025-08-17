@@ -2,7 +2,7 @@
 local plugin = ...
 
 plugin.name = "Transfer"
-plugin.author = "max"
+plugin.author = "Jpsh, max"
 plugin.description = "Transfer players, vehicles, items, and data between servers."
 
 ---@class JPXSTransfer
@@ -15,6 +15,7 @@ local Transfer = {
 Transfer.__index = Transfer
 
 Transfer.transferring = {}
+Transfer.incoming = {}
 
 function Transfer.sendPlayer(ply, identifier, options)
 	if not ply.isActive then
@@ -36,9 +37,9 @@ function Transfer.sendPlayer(ply, identifier, options)
 
 			plugin.core.client.sendMessage("server:" .. res.clientId, "transfer:player", {
 				identifier = Transfer.identifier,
+				serverId = plugin.core.client.serverId,
 				name = ply.name,
-				ip = ip,
-				port = port,
+				subRosaID = ply.account.subRosaID,
 				data = options.data or {},
 				playerData = Transfer.resolveData(ply, {
 					include = options.include,
@@ -59,6 +60,7 @@ function Transfer.sendVehicle(vehicle, identifier, options) end
 ---@param options {include: string[]?, exclude: string[]?}
 ---@return table
 function Transfer.resolveData(data, options)
+	options = options or {}
 	local include = options.include or {}
 	local exclude = options.exclude or {}
 
@@ -102,7 +104,7 @@ end
 ---@param identifier string
 ---@param callback fun(res: {success: boolean, error: string?, ip: string?, port: integer?, clientId: string?, name: string?})
 function Transfer._resolveServerIdentifier(identifier, callback)
-	plugin:getOrDownloadModule("api", function()
+	plugin.core:getOrDownloadModule("api", function()
 		jpxs.api:getServerInfo(identifier, function(res)
 			if res.success then
 				callback(res)
@@ -129,12 +131,44 @@ function Transfer._transferPlayer(player, ip, port)
 	event.a = ind
 	event.c = port
 	event.d = ipToBytes(ip)
+
 	Transfer.transferring[ind] = {
 		trigger = triggerevent,
 		event = event,
 		ip = ip,
 		port = port,
 	}
+end
+
+---@private
+---@param player Player
+---@param data table
+---@param playerData table
+---@param serverId string
+function Transfer._applyTransfer(player, data, playerData, serverId)
+	if not player.isActive then
+		return
+	end
+
+	for key, value in pairs(playerData) do
+		player.data[key] = value
+	end
+
+	-- basically reverse Transfer._resolveData
+	for key, value in pairs(data) do
+		if type(value) == "table" then
+			for subKey, subValue in pairs(value) do
+				player.data[key][subKey] = subValue
+			end
+		else
+			player.data[key] = value
+		end
+	end
+
+	-- let the source server know that the transfer was successful
+	plugin.core.client.sendMessage("server:" .. serverId, "transfer:player:success", {
+		subRosaID = player.account.subRosaID,
+	})
 end
 
 plugin.core.config:registerConfigValue(
@@ -147,12 +181,46 @@ plugin.core.config:registerConfigValue(
 plugin:addHook("JPXSLoaded", function()
 	---@type string
 	Transfer.identifier = plugin.core.config:get("identifier") or server.name
+
+	plugin.core.client.registerEventHandler("transfer:player", function(msg)
+		local message = msg.data
+		local playerData = message.playerData or {}
+		local id = message.subRosaID
+
+		local activePlayer = table.find(players.getNonBots(), function(p)
+			return p.account and p.account.subRosaID == id
+		end)
+
+		if activePlayer then
+			Transfer._applyTransfer(activePlayer, message.data, playerData, message.serverId)
+			return
+		else
+			-- if the player is not active, we need to store the data for later
+			Transfer.incoming[id] = {
+				data = message.data,
+				playerData = playerData,
+				serverId = message.serverId,
+			}
+		end
+	end)
 end)
 
 local invalidate = function(tab)
 	tab.event.type = 48
 	tab.trigger.type = 48
 end
+
+plugin:addHook("PostPlayerCreate", function(player)
+	if player.isBot or player.connection == nil then
+		return
+	end
+
+	local incomingData = Transfer.incoming[player.account.subRosaID]
+	if incomingData then
+		Transfer._applyTransfer(player, incomingData.data, incomingData.playerData, incomingData.serverId)
+		Transfer.incoming[player.account.subRosaID] = nil
+	end
+end)
 
 plugin:addHook("Logic", function()
 	for ind, tab in pairs(Transfer.transferring) do
@@ -191,6 +259,30 @@ plugin:addHook("PacketBuilding", function(con)
 		end
 	end
 end)
+
+plugin.rsPlugin.commands["/transfer"] = {
+	info = "Transfer to another server",
+	usage = "<identifier>",
+	aliases = { "/server" },
+	---@param player Player
+	---@param human Human
+	---@param args string[]
+	call = function(player, human, args)
+		local identifier = args[1] and table.concat(args, " ", 1) or nil
+		assert(identifier, "You must specify an identifier to transfer to.")
+		assert(plugin.core.client, "Client hasn't loaded yet.")
+
+		Transfer.sendPlayer(player, identifier, {
+			include = { "data.jpxs" }, -- include the jpxs data
+			data = {
+				transferReason = "Manual transfer request",
+			},
+			onError = function(err)
+				player:sendMessage("Error transferring: " .. err)
+			end,
+		})
+	end,
+}
 
 return {
 	exportName = "transfer",

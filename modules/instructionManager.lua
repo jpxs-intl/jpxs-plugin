@@ -24,7 +24,6 @@ end
 
 ---@param Client JPXSClient
 Core:getDependencies({ "client" }, function(Client)
-	Client.subscribe("instruction")
 	Client.registerEventHandler("instruction:execute", function(msg)
 		local type = msg.type
 		local id = msg.id

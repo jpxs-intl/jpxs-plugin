@@ -16,23 +16,35 @@ Core:getDependencies({ "client" }, function(Client)
 				return
 			end
 
-			hook.run("JPXSPlayerJoin", player)
-
-			Client.sendMessage("data", "player:join", {
-				player = {
-					name = player.account.name,
-					phoneNumber = player.account.phoneNumber,
-					steamID = player.account.steamID,
-					subRosaID = player.account.subRosaID,
-					address = player.connection.address,
-					gender = player.gender,
-					head = player.head,
-					skinColor = player.skinColor,
-					hair = player.hair,
-					hairColor = player.hairColor,
-					eyeColor = player.eyeColor,
-				},
-			})
+			if not hook.run("JPXSPlayerJoin", player) then
+				Client.sendMessage("data", "player:join", {
+					player = player.account and {
+						name = player.account.name,
+						phoneNumber = player.account.phoneNumber,
+						steamID = player.account.steamID,
+						subRosaID = player.account.subRosaID,
+						address = player.connection.address,
+						gender = player.gender,
+						head = player.head,
+						skinColor = player.skinColor,
+						hair = player.hair,
+						hairColor = player.hairColor,
+						eyeColor = player.eyeColor,
+					} or {
+						name = player.name,
+						phoneNumber = player.phoneNumber,
+						steamID = "undefined",
+						subRosaID = player.subRosaID,
+						address = player.connection.address,
+						gender = player.gender,
+						head = player.head,
+						skinColor = player.skinColor,
+						hair = player.hair,
+						hairColor = player.hairColor,
+						eyeColor = player.eyeColor,
+					},
+				})
+			end
 
 			Core.awaitingPlayers[index] = nil
 		end
@@ -41,33 +53,40 @@ Core:getDependencies({ "client" }, function(Client)
 			local playerListData = {}
 
 			for _, player in pairs(players.getNonBots()) do
-				if player.account == nil then
+				if
+					player.account == nil
+					or (player.data.jpxs and player.data.jpxs.isHidden)
+					---@diagnostic disable-next-line: undefined-global
+					or (isHiddenModerator and isHiddenModerator(player))
+				then
 					goto continue
 				end
 
-				local isManger = nil
-				if player.team > -1 and player.team < #corporations then
+				local isManager = nil
+				if corporations and player.team > -1 and player.team < #corporations then
 					if corporations[player.team] and corporations[player.team].managerPlayerID == player.index then
-						isManger = true
+						isManager = true
 					end
 				end
-
-				table.insert(playerListData, {
-					subRosaID = player.account.subRosaID,
-					money = player.money,
-					team = player.team,
-					budget = player.budget,
-					corp = player.corporateRating,
-					crim = player.criminalRating,
-					isManager = isManger,
-				})
-
+				if not hook.run("JPXSPlayerListAdd", player) then
+					table.insert(playerListData, {
+						subRosaID = player.account.subRosaID,
+						money = player.money,
+						team = player.team,
+						budget = player.budget,
+						corp = player.corporateRating,
+						crim = player.criminalRating,
+						isManager = isManager,
+					})
+				end
 				::continue::
 			end
 
 			hook.run("JPXSPlayerListUpdate", playerListData)
 
 			Client.sendMessage("data", "player:list", {
+				sunTime = server.sunTime,
+				time = server.time / server.TPS,
 				players = playerListData,
 			})
 		end
@@ -95,21 +114,7 @@ Core:getDependencies({ "client" }, function(Client)
 		Client.sendMessage("data", "player:chat", {
 			subRosaID = player.account.subRosaID,
 			message = message,
-			volume = player.voice.volumeLevel,
-		})
-	end)
-
-	Core.addHook("PostEventUpdatePlayerFinance", "players", function(player)
-		if player.account == nil or player.isBot then
-			return
-		end
-
-		hook.run("JPXSPlayerFinanceUpdate", player)
-
-		Client.sendMessage("data", "player:finance", {
-			subRosaID = player.account.subRosaID,
-			money = player.money,
-			corporateRating = player.corporateRating,
+			volume = player.voice and player.voice.volumeLevel,
 		})
 	end)
 end)

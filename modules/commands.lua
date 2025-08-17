@@ -29,7 +29,7 @@ Core.commands["help"] = {
 	usage = "jpxs help [page]",
 	call = function(args)
 		for name, command in pairs(Core.commands) do
-			if command.hidden then
+			if command.hidden or (Core.overrides.disabledCommands and Core.overrides.disabledCommands[name]) then
 				goto continue
 			end
 			print(string.format("\x1b[36;1m%s\x1b[0m - %s", name, command.info))
@@ -250,6 +250,10 @@ Core.plugin.commands["/jpxs"] = {
 	call = function(player, human, args)
 		if player.class == "Player" then
 			local command = Core.commands[args[1]]
+			if Core.overrides.disabledCommands and Core.overrides.disabledCommands[args[1]] then
+				messagePlayerWrap(player, "This command is disabled.")
+				return
+			end
 			if command then
 				if command.callChat then
 					if (command.canCall and command.canCall(player)) or not command.canCall then
@@ -281,6 +285,10 @@ Core.plugin.commands["/jpxs"] = {
 			end
 		else
 			local command = Core.commands[args[1]]
+			if Core.overrides.disabledCommands and Core.overrides.disabledCommands[args[1]] then
+				Core:print("This command is disabled.")
+				return
+			end
 			if command then
 				local success, res = pcall(command.call, args)
 				if not success then

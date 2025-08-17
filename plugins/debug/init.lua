@@ -34,4 +34,4 @@ plugin:addDisableHandler(function()
 	jpxs.debugEnabled = false
 end)
 
-plugin:getDependencies({ "networking" })
+-- plugin:getDependencies({ "networking" })

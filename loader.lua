@@ -6,7 +6,6 @@
 ---@field plugins JPXSPluginLib
 ---@field transfer JPXSTransfer
 ---@field devTools JPXSDevTools
----@field patchset JPXSPatchSetLib
 local Core = {}
 
 Core.KEEP_OUT_MESSAGE = [[
@@ -39,6 +38,8 @@ Core.moduleCache = {}
 Core.hasLoadedModules = false
 
 Core.debugEnabled = Core.overrides.debugEnabled or false
+
+Core.json = require("main.json")
 
 Core.assetHost = Core.overrides.assetHost or {
 	host = "https://assets.jpxs.io",
@@ -80,7 +81,7 @@ local modules = Core.overrides.modules
 Core.defaultPlugins = Core.overrides.defaultPlugins or {
 	"autoupdater",
 	"gmsg",
-	"tt",
+	"transfer",
 }
 
 -- globals
@@ -380,6 +381,17 @@ function Core:load()
 				postLoad()
 			else
 				Core:print("Failed to download polyfill")
+			end
+		end)
+	end
+	-- check for json
+	if not Core.json or not (Core.json.decode and Core.json.encode) then
+		Core:httpGet("/plugins/lib/json.lua", function(response)
+			if response then
+				Core.json = loadstring(response)()
+				Core:debug("JSON library loaded")
+			else
+				Core:print("Failed to download JSON library")
 			end
 		end)
 	end

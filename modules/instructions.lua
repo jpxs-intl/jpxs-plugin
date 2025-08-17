@@ -29,6 +29,7 @@ Core:getDependencies({ "instructionManager" }, function(InstructionManager)
 	end)
 
 	InstructionManager.registerHandler("announce", function(data, cb)
+		print(inspect(data))
 		chat.announceWrap(data.message)
 		Core:print("[Announcement] " .. data.message)
 		cb(true, "Announcement sent")

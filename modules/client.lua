@@ -1,7 +1,7 @@
 ---@type Core
 local Core = ...
 
-local json = require("main.json")
+local json = Core.json
 
 ---@class JPXSClient
 local Client = {}
@@ -103,6 +103,7 @@ Client.eventHandlers = {
 
 		Client.subscribe("server:" .. Client.serverId)
 		Client.subscribe("api")
+		Client.subscribe("instruction")
 	end,
 	["auth:fail"] = function(msg)
 		Core:print("Failed to authenticate with JPXS gateway: " .. msg.message)

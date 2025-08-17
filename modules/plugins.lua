@@ -320,13 +320,9 @@ local pluginCommands = {
 			return
 		end
 
-		local success, message = Core.plugins.loadPlugin(pluginName)
-
-		if success then
-			print(string.format("\x1b[32;1mPlugin %s reloaded successfully.\x1b[0m", pluginName))
-		else
-			print(string.format("\x1b[31;1mFailed to reload plugin %s: %s\x1b[0m", pluginName, message))
-		end
+		Core.plugins.loadPlugin(pluginName, function(module)
+			print(string.format("\x1b[32;1mPlugin %s reloaded successfully.\x1b[0m", module.name))
+		end)
 	end,
 }
 

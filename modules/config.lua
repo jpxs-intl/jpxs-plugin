@@ -1,7 +1,7 @@
 ---@type Core
 local Core = ...
 
-local json = require("main.json")
+local json = Core.json
 
 ---@class JPXSConfigValue
 ---@field value any

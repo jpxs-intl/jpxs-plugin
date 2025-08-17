@@ -32,7 +32,7 @@
 ---@field include string[]? List of properties to include in the transfer, see the documentation for more info
 ---@field exclude string[]? List of properties to exclude from the transfer
 ---@field data any? Extra data to send with the transfer (available as `data` in the receiving function)
----@field callback fun(data: any)? Callback function to run when the transfer is finished
+---@field callback fun(success: boolean, data: any)? Callback function to run when the transfer is finished
 ---@field onError fun(err: string)? Callback function to run when the transfer fails
 
 ---@class JPXSAPIPublic
