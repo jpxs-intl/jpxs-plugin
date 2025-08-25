@@ -64,6 +64,7 @@ Core.awaitingPlayers = {}
 local modules = Core.overrides.modules
 	or {
 		"init",
+		"storage",
 		"players",
 		"instructions",
 		"log",

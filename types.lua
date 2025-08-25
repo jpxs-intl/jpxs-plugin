@@ -22,6 +22,7 @@
 ---@field transfer JPXSTransferPublic
 ---@field api JPXSAPIPublic
 ---@field patchset JPXSPatchSetPublic
+---@field storage JPXSStoragePublic
 
 ---@class JPXSTransferPublic
 ---@field identifier string
@@ -49,6 +50,12 @@
 ---@field revertAll fun(self: JPXSPatchSetPublic) Revert all patch sets, restoring all original values.
 ---@field writeByte fun(self: JPXSPatchSetPublic, addr: number, value: number, description?: string) Write an unsigned byte to the specified address.
 ---@field writeBytes fun(self: JPXSPatchSetPublic, addr: number, values: table<number>, description?: string) Write multiple unsigned bytes to the specified address.
+
+---@class JPXSStoragePublic
+---@field __call fun(self: JPXSStoragePublic, key: string, value?: (string | fun(success: boolean, value: string?)), token?: (string | fun(success: boolean)), cb?: fun(success: boolean))
+---@field get fun(self: JPXSStoragePublic, key: string, cb: fun(success: boolean, value: string?))
+---@field set fun(self: JPXSStoragePublic, key: string, value: string, token: string?, cb: fun(success: boolean))
+---@field delete fun(self: JPXSStoragePublic, key: string, token: string?, cb: fun(success: boolean))
 
 do
 	---@type JPXSCorePublic
