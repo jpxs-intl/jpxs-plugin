@@ -76,15 +76,15 @@ Core:getDependencies({ "client" }, function(Client)
 					end
 				end
 
-				local corp = server.type == TYPE_ROUND and (getTeamBonus(player.team) * player.stocks)
-					or player.corporateRating
+				local money = server.type == TYPE_ROUND and player.money + (getTeamBonus(player.team) * player.stocks)
+					or player.money
 				if not hook.run("JPXSPlayerListAdd", player) then
 					table.insert(playerListData, {
 						subRosaID = player.account.subRosaID,
-						money = player.money,
+						money = money,
 						team = player.team,
 						budget = player.budget,
-						corp = corp,
+						corp = player.corporateRating,
 						crim = player.criminalRating,
 						isManager = isManager,
 					})
