@@ -1,6 +1,13 @@
 ---@type Core
 local Core = ...
 
+-- provided by jpsh
+
+local base = memory.getBaseAddress()
+local function getTeamBonus(team)
+	return math.floor(memory.readFloat(base + 0x5a80bc04 + (0x18 * team)))
+end
+
 ---@param Client JPXSClient
 Core:getDependencies({ "client" }, function(Client)
 	Core.addHook("PostPlayerCreate", "players", function(player)
@@ -68,13 +75,16 @@ Core:getDependencies({ "client" }, function(Client)
 						isManager = true
 					end
 				end
+
+				local corp = server.type == TYPE_ROUND and (getTeamBonus(player.team) * player.stocks)
+					or player.corporateRating
 				if not hook.run("JPXSPlayerListAdd", player) then
 					table.insert(playerListData, {
 						subRosaID = player.account.subRosaID,
 						money = player.money,
 						team = player.team,
 						budget = player.budget,
-						corp = player.corporateRating,
+						corp = corp,
 						crim = player.criminalRating,
 						isManager = isManager,
 					})

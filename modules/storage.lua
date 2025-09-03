@@ -33,18 +33,23 @@ local storage = {}
 
 setmetatable(storage, storageMeta)
 
+jpxs.client.subscribe("storage")
+
 ---@param key string
 ---@param cb fun(success: boolean, value: string | nil): nil
 function storage.get(key, cb)
 	Core.client.request("storage", "get", { key = key }, function(msg)
-		cb(msg.success, msg.value)
+		if not cb then
+			return Core:print(msg.data.value or "nil")
+		end
+		cb(msg.data.success, msg.data.value)
 	end)
 end
 
 ---@param key string
 ---@param value string
----@param token (string | fun(success: boolean): nil)?
----@param cb fun(success: boolean): nil
+---@param token? (string | fun(success: boolean): nil)?
+---@param cb? fun(success: boolean): nil
 function storage.set(key, value, token, cb)
 	if not cb and type(token) == "function" then
 		cb = token
@@ -52,13 +57,20 @@ function storage.set(key, value, token, cb)
 	end
 
 	Core.client.request("storage", "set", { key = key, value = value, token = token }, function(msg)
-		cb(msg.success)
+		if cb then
+			cb(msg.data.success)
+		end
 	end)
 end
 
+---@param key string
+---@param token? (string | fun(success: boolean): nil)?
+---@param cb? fun(success: boolean): nil
 function storage.delete(key, token, cb)
 	Core.client.request("storage", "delete", { key = key, token = token }, function(msg)
-		cb(msg.success)
+		if cb then
+			cb(msg.data.success)
+		end
 	end)
 end
 
