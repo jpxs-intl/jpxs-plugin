@@ -76,6 +76,7 @@ local modules = Core.overrides.modules
 		"api",
 		"patchset",
 		"plugins",
+		"globalban",
 	}
 
 ---Default plugins to load
